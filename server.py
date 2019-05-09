@@ -1,44 +1,61 @@
-import socketio
-from sanic import Sanic
-from sanic.response import file
+import os
 
-sio = socketio.AsyncServer(async_mode='sanic')
-app = Sanic()
-sio.attach(app)
+import socketio
+from jinja2 import Environment, FileSystemLoader
+from sanic import Sanic
+from sanic.response import html
+
+import resource_path
 
 online = 0
 
-namespace = '/danmaku'
 
-app.static('/video', './test')
+def create_danmaku(app):
+    sio = socketio.AsyncServer(async_mode='sanic')
+    sio.attach(app)
 
+    namespace = '/danmaku'
 
-@app.route('/')
-async def index(request):
-    return await file('./index.html')
+    @sio.on('connect', namespace=namespace)
+    async def connect(sid, environ):
+        global online
+        online += 1
+        await sio.emit('online', str(online), namespace=namespace)
 
+    @sio.on('disconnect', namespace=namespace)
+    async def disconnect(sid):
+        global online
+        online -= 1
+        await sio.emit('online', str(online), namespace=namespace)
 
-@sio.on('connect', namespace=namespace)
-async def connect(sid, environ):
-    global online
-    online += 1
-    await sio.emit('online', str(online), namespace=namespace)
+    @sio.on('send_danmaku', namespace=namespace)
+    async def send_danmaku(sid, message):
+        # print('发送弹幕', message)
 
-
-@sio.on('disconnect', namespace=namespace)
-async def disconnect(sid):
-    global online
-    online -= 1
-    await sio.emit('online', str(online), namespace=namespace)
-
-
-@sio.on('send_danmaku', namespace=namespace)
-async def send_danmaku(sid, message):
-    # print('发送弹幕', message)
-
-    # 广播给其他人
-    await sio.emit('get_danmaku', message, namespace=namespace, skip_sid=sid)
+        # 广播给其他人
+        await sio.emit('get_danmaku', message, namespace=namespace, skip_sid=sid)
 
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=2333, access_log=False)
+def run(port: int, video_dir: str, socket_url: str):
+    app = Sanic()
+    app.static('/video', os.path.normpath(video_dir))
+    app.static('/favicon.ico', resource_path.path('./icon.ico'))
+
+    # 模版系统
+    env = Environment(loader=FileSystemLoader(resource_path.path('./')))
+
+    if len(socket_url) == 0:
+        socket_url = 'null'
+    elif socket_url == '1':
+        socket_url = '"1"'
+        create_danmaku(app)
+    else:
+        socket_url = '"{}"'.format(_socket_url)
+
+    @app.route('/')
+    async def index(request):
+        template = env.get_template('index.html')
+        html_content = template.render(socket_url=socket_url)
+        return html(html_content)
+
+    app.run(host='0.0.0.0', port=port, access_log=False)

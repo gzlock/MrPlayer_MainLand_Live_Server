@@ -9,25 +9,17 @@ from tkinter import filedialog, messagebox
 from urllib.parse import urlparse
 from webbrowser import open
 
+import requests
 from fake_useragent import UserAgent
 from pyperclip import copy
-import requests
 
-import client_server
+import server
 import create_list
 import m3u8
 import mul_process_package
+import resource_path
 
 mul_process_package.ok()
-
-
-# 生成资源文件目录访问路径
-def resource_path(relative_path):
-    if getattr(sys, 'frozen', False):  # 是否Bundle Resource
-        base_path = sys._MEIPASS
-    else:
-        base_path = os.path.abspath(".")
-    return os.path.join(base_path, relative_path)
 
 
 def is_number(s) -> bool:
@@ -45,30 +37,6 @@ def is_number(s) -> bool:
         pass
 
     return False
-
-
-def start_server():
-    global is_working
-    is_working = True
-    port.config(state='readonly')
-    start_btn.config(state=tkinter.DISABLED)
-    stop_btn.config(state=tkinter.NORMAL)
-    video_url.config(state='readonly')
-    danmaku_url.config(state='readonly')
-
-    ip_frame.pack()
-
-
-def stop_server():
-    global is_working
-    is_working = False
-    port.config(state=tkinter.NORMAL)
-    start_btn.config(state=tkinter.NORMAL)
-    stop_btn.config(state=tkinter.DISABLED)
-    video_url.config(state=tkinter.NORMAL)
-    danmaku_url.config(state=tkinter.NORMAL)
-
-    ip_frame.pack_forget()
 
 
 # 广域网ip
@@ -113,6 +81,7 @@ def is_url(_url: str) -> bool:
 
 def test_connect(video_url: str, proxy: str) -> str:
     """
+    测试连接到视频源
     :param video_url:
     :param proxy:
     :return: 'ok'||'NeedTWIP'||'NotM3u8'||'ProxyError'||'ConnectError'
@@ -142,15 +111,18 @@ def test_connect(video_url: str, proxy: str) -> str:
 
             return 'ok'
         else:
-            res = requests.get(video_url, proxies=proxies, headers=headers)
+            res = requests.get(video_url, proxies=proxies, headers=headers, timeout=5)
             if res.status_code is not 200 or '#EXTM3U' not in res.text:
                 return 'NotM3u8'
             return 'ok'
 
     except Exception as e:
-        print(e.__str__())
-        if 'ProxyError' in e.__str__():
+        message = e.__str__()
+        print(message)
+        if 'ProxyError' in message:
             return 'ProxyError'
+        elif 'Read timed out' in message:
+            return 'TimeOut'
         return 'ConnectError'
 
 
@@ -195,6 +167,20 @@ class LocalForm(BaseLayout):
         self.__port.set('2333')
         tkinter.Entry(frame, textvariable=self.__port).pack(fill=tkinter.BOTH, padx=2, expand=True)
 
+        self.__show_create_damaku_layout_count = 0
+
+        self.layout.bind('<Button-1>', self.__hidden_func)
+
+        self.__create_damaku = tkinter.IntVar()
+        self.__create_damaku.set(1)
+
+    def __hidden_func(self, event):
+        print('event', event)
+        if event.x < 50 and event.y < 50:
+            self.__show_create_damaku_layout_count += 1
+        if self.__show_create_damaku_layout_count == 5:
+            self.__show_create_danmaku_layout()
+
     def __select_folder(self):
         self.__video_cache.set(filedialog.askdirectory(title='选择要存放视频缓存的目录'))
 
@@ -203,6 +189,15 @@ class LocalForm(BaseLayout):
 
     def video_cache_dir(self):
         return self.__video_cache.get()
+
+    def create_danmaku(self):
+        return self.__create_damaku.get() == 1
+
+    def __show_create_danmaku_layout(self):
+        frame = tkinter.Frame(self.layout)
+        frame.pack(fill=tkinter.BOTH, pady=5)
+        tkinter.Checkbutton(frame, text='自建弹幕池(覆盖弹幕源)', variable=self.__create_damaku, onvalue=1).pack(
+            side=tkinter.LEFT, padx=5)
 
 
 class VideoUrlForm(BaseLayout):
@@ -214,7 +209,7 @@ class VideoUrlForm(BaseLayout):
 
         # 直播源 选择
         self.__select = select = tkinter.StringVar()
-        select.set('1')
+        select.set('2')
         frame = tkinter.Frame(layout)
         frame.pack(fill=tkinter.BOTH)
         tkinter.Radiobutton(frame, text='四季TV视频源（需要台湾IP）', variable=select, value='1').pack(anchor=tkinter.W)
@@ -226,21 +221,21 @@ class VideoUrlForm(BaseLayout):
         # 直播源 输入框
         self.__video_frame = frame = tkinter.Frame(layout)
 
-        tkinter.Label(frame, text='直播源(*)', width=8, anchor=tkinter.E).pack(side=tkinter.LEFT, padx=5, pady=5)
+        tkinter.Label(frame, text='直播源(*)', width=8, anchor=tkinter.E).pack(side=tkinter.LEFT)
         self.__video = tkinter.StringVar()
         tkinter.Entry(frame, textvariable=self.__video).pack(fill=tkinter.X, padx=5, expand=True)
 
         # 弹幕源 输入框
         self.__danmaku_frame = frame = tkinter.Frame(layout)
 
-        tkinter.Label(frame, text='弹幕源', width=8, anchor=tkinter.E).pack(side=tkinter.LEFT, padx=5, pady=5)
+        tkinter.Label(frame, text='弹幕源', width=8, anchor=tkinter.E).pack(side=tkinter.LEFT)
         self.__danmaku = tkinter.StringVar()
         tkinter.Entry(frame, textvariable=self.__danmaku).pack(fill=tkinter.X, padx=5, expand=True)
 
         # 代理 输入框
         frame = tkinter.Frame(layout)
         frame.pack(fill=tkinter.BOTH)
-        tkinter.Label(frame, text='网络代理', width=8, anchor=tkinter.E).pack(side=tkinter.LEFT, padx=5, pady=5)
+        tkinter.Label(frame, text='网络代理', width=8, anchor=tkinter.E).pack(side=tkinter.LEFT)
         self.__proxy = tkinter.StringVar()
         tkinter.Entry(frame, textvariable=self.__proxy).pack(fill=tkinter.X, padx=5, expand=True)
 
@@ -353,11 +348,11 @@ class ButtonsFrame:
 
         # 停止 服务
         self.stop_btn = stop_btn = tkinter.Button(frame, text='停止转播', command=self.stop, state=tkinter.DISABLED)
-        stop_btn.pack(side=tkinter.LEFT, padx=5)
+        stop_btn.pack(side=tkinter.LEFT, padx=5, pady=5)
 
         # 合并视频文件
         self.create_mp4_btn = create_mp4_btn = tkinter.Button(frame, text='合并视频', command=self.create_mp4)
-        create_mp4_btn.pack(side=tkinter.LEFT, padx=5)
+        create_mp4_btn.pack(side=tkinter.LEFT)
 
         # 清空视频缓存
         self.clear_cache_btn = clear_cache_btn = tkinter.Button(frame, text='清空缓存', command=self.clear_cache)
@@ -392,12 +387,19 @@ class ButtonsFrame:
         if port < 2000 or port > 60000:
             return tkinter.messagebox.showerror('错误', '端口只能从2000到60000')
 
+        create_danmaku: bool = self.local_frame.create_danmaku()
+
         # print(video_cache_dir, port)
 
         # 检查 三个网址
         video_url = self.video_frame.video_url()
         danmaku_url = self.video_frame.danmaku_url()
         proxy_url = self.video_frame.proxy_url()
+
+        if create_danmaku:
+            print('自建弹幕')
+            danmaku_url = '1'
+
         # print(video_url, danmaku_url, proxy_url)
 
         if len(video_url) == 0:
@@ -406,8 +408,9 @@ class ButtonsFrame:
             if video_url != '1' and not is_url(video_url):
                 return tkinter.messagebox.showerror('错误', '视频源的格式错误，只接受:\nhttp:\\\\xxx\n的格式')
 
-        if len(danmaku_url) > 0 and not is_url(danmaku_url):
-            return tkinter.messagebox.showerror('错误', '弹幕源的格式错误，只接受:\nhttp:\\\\xxx\n的格式')
+        if danmaku_url != '1':
+            if len(danmaku_url) > 0 and not is_url(danmaku_url):
+                return tkinter.messagebox.showerror('错误', '弹幕源的格式错误，只接受:\nhttp:\\\\xxx\n的格式')
 
         if len(proxy_url) > 0:
             if not is_url(proxy_url):
@@ -421,17 +424,19 @@ class ButtonsFrame:
                 title = '代理服务器出现错误'
             message = title
             if check == 'NeedTWIP':
-                message = '需要台湾IP'
+                message = '四季TV网络视频源 需要台湾IP'
             elif check == 'ProxyError':
                 message = '连接不到代理服务器'
             elif check == 'NotM3u8':
-                message = '网络视频源返回的不是M3u8文件格式'
+                message = '网络视频源 返回的不是M3u8文件格式'
+            elif check == 'TimeOut':
+                message = '连接 网络视频源 超时(5秒)'
             return tkinter.messagebox.showerror(title, message)
 
         self.__m3u8_process = Process(target=m3u8.run, args=(video_cache_dir, video_url, proxy_url))
         self.__m3u8_process.start()
 
-        self.__server_process = Process(target=client_server.run, args=(port, video_cache_dir, danmaku_url))
+        self.__server_process = Process(target=server.run, args=(port, video_cache_dir, danmaku_url))
         self.__server_process.start()
 
         return '123ok'
@@ -500,12 +505,32 @@ class ButtonsFrame:
         pass
 
 
+class Menu:
+    def __init__(self, root) -> None:
+        super().__init__()
+        self.menu = menubar = tkinter.Menu(root)
+        root.config(menu=menubar)
+
+        helpmenu = tkinter.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="帮助", menu=helpmenu)
+
+        helpmenu.add_command(label="报告软件问题(QQ群)", command=lambda: open(
+            'https://shang.qq.com/wpa/qunwpa?idkey=c93fa2d0819d8405ed6468d48126e7ac2644a716dec65b4353355944ec6a426f'))
+        helpmenu.add_command(label="本软件开源(Github)", command=lambda: open(
+            'https://github.com/gzlock/mrplayer_mainland_live_server'))
+        helpmenu.add_command(label="百度吴宗宪贴吧", command=lambda: open(
+            'http://tieba.baidu.com/f?kw=%E5%90%B4%E5%AE%97%E5%AE%AA&ie=utf-8'))
+
+    def help(self):
+        print('哈哈')
+
+
 if __name__ == '__main__':
     freeze_support()
 
     root = tkinter.Tk()
     root.title('综艺玩很大 转播程序 v0.3')
-    root.iconbitmap(resource_path('./icon.ico'))
+    root.iconbitmap(resource_path.path('./icon.ico'))
     # 禁止改变窗口大小
     root.resizable(False, False)
 
@@ -518,6 +543,8 @@ if __name__ == '__main__':
     url = UrlForm(root=root)
 
     buttons = ButtonsFrame(root=root, local_frame=local, video_frame=video, url_frame=url)
+
+    menu = Menu(root=root)
 
 
     def on_closing():
