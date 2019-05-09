@@ -10,9 +10,10 @@ from urllib import parse
 import requests
 from fake_useragent import UserAgent
 
+import mul_process_package
 import str_md5
 
-regex = r"vod\/(.*)\/master\.m3u8"
+mul_process_package.ok()
 
 storage_dir = ""
 ts_list = {}
@@ -20,7 +21,11 @@ i = 0
 
 GoOn = True
 
-proxies = {}
+# 例子
+proxies = {
+    'http': 'http://127.0.0.1:1087',
+    'https': 'http://127.0.0.1:1087',
+}
 
 
 def shutdown(signalnum, frame):
@@ -29,7 +34,7 @@ def shutdown(signalnum, frame):
     GoOn = False
 
 
-def main(dir: str, url, clear):
+def main(dir: str, video_url: str, clear):
     # for sig in [signal.SIGINT, signal.SIGHUP, signal.SIGTERM, signal.SIGKILL]:
     signal.signal(signal.SIGINT, shutdown)
 
@@ -47,50 +52,69 @@ def main(dir: str, url, clear):
     if not os.path.exists(storage_dir):
         os.mkdir(storage_dir)
 
-    ts_url_folder = '/'.join(url.split('/')[:-1])
+    get_m3u8_url_last_time = 0
 
+    url = video_url
+    if video_url == '1':
+        print('使用四季TV源')
+        url = None
     # 不断循环
     while GoOn:
+        # 四季TV源
+        if video_url == '1':
+            if time.time() - get_m3u8_url_last_time > 60:
+                temp_url = get_m3u8_url(proxies=proxies)
+                if temp_url is not None:
+                    url = temp_url
+                    get_m3u8_url_last_time = time.time()
+        if url is None:
+            continue
         m3u8_content = requests.get(url, proxies=proxies).text
         if "#EXTM3U" not in m3u8_content:
             print("内容不符合M3U8的格式")
         file_line = m3u8_content.split("\n")
+        has_new_ts_file = False
         for index, line in enumerate(file_line):
             if "EXTINF" in line:  # 找ts地址并下载
-                ts_url = ts_url_folder + '/' + file_line[index + 1]  # 下一行就是ts网址
+                ts_url = file_line[index + 1]  # 下一行就是ts网址
                 ts_file_name = get_ts_file_name(ts_url)
                 md5 = str_md5.to_md5(ts_file_name)
                 if md5 not in ts_list:
+                    has_new_ts_file = True
                     ts_list[md5] = (ts_file_name, False)
-                    queue.apply_async(download_ts_file, (ts_file_name, ts_url, md5, storage_dir))
+                    queue.apply_async(download_ts_file, (url, ts_file_name, ts_url, md5))
 
-        save_hls_m3u8_list_file()
-        time.sleep(5)
+        if has_new_ts_file:
+            save_hls_m3u8_list_file()
+
+        time.sleep(1)
 
     queue.close()
     queue.join()
 
 
-def download_ts_file(ts_name, ts_url, md5, save_dir):
-    print('开始下载', ts_url)
-    try:
-        res = requests.get(ts_url, proxies=proxies, timeout=20)
-        if res.status_code != 200:
-            raise Exception('404')
-        content = res.content
-        save_dir = os.path.normpath(save_dir + '/' + ts_name)
-        # print('保存ts路径', save_dir)
-        with open(save_dir, 'wb') as file:
-            file.write(content)
-        print('保存成功', save_dir)
-        ts_list[md5] = (ts_name, True)
-    except Exception as ex:
-        print('TS文件下载失败', ts_name)
+def download_ts_file(url: str, ts_name: str, ts_url: str, md5: str):
+    if '://' in ts_url:
+        url = ts_url
+    else:
+        url = '/'.join(url.split('/')[:-1]) + '/' + ts_url
+    success = False
+    while success is False:
+        print('TS开始下载', ts_name)
+        try:
+            content = requests.get(url, proxies=proxies, timeout=20).content
+            with open(storage_dir + '/' + ts_name, 'wb') as file:
+                file.write(content)
+                success = True
+            print('TS保存成功', ts_name)
+            ts_list[md5] = (ts_name, True)
+        except Exception as ex:
+            print('TS下载失败', ts_name)
 
 
-def get_m3u8_url():
+def get_m3u8_url(proxies: dict):
     try:
-        url = "https://api.4gtv.tv/Channel/GetChannelUrl"
+        url = "https://api2.4gtv.tv/Channel/GetChannelUrl"
         ua = UserAgent()
         payload = "fnCHANNEL_ID=4&fsASSET_ID=4gtv-4gtv040&fsDEVICE_TYPE=pc&clsIDENTITY_VALIDATE_ARUS%5BfsVALUE%5D=123"
         headers = {
@@ -100,17 +124,15 @@ def get_m3u8_url():
             "Pragma": "no-cache",
             "Accept-Language": "zh-CN,zh;q=0.8,en-US;q=0.6,en;q=0.4",
         }
-        response = requests.request("POST", url, data=payload, headers=headers, proxies=proxies,
-                                    timeout=5)
-        if response.status_code is not 200 or 'flstURLs' not in response.text:
+        res = requests.request("POST", url, data=payload, headers=headers, proxies=proxies,
+                               timeout=5)
+        if res.status_code is not 200 or 'flstURLs' not in res.text:
             print('获取Key错误，需要台湾IP')
 
-        url = response.json()['flstURLs'][0]
-        matches = re.search(regex, url)
-        key = matches.group(1)
-        response = requests.get(url, proxies=proxies, timeout=5)
-        file_line = response.text.split('\n')
-        url = 'http://p-sirona-yond-4gtv.svc.litv.tv/hi/vod/{}/{}'.format(key, file_line[7])
+        url = res.json()['Data']['flstURLs'][0]
+        res = requests.get(url, proxies=proxies, timeout=5)
+        file_line = res.text.split('\n')
+        url = '/'.join(url.split('/')[:-1]) + '/' + file_line[7]
         print('网址', url)
         return url
 
@@ -130,9 +152,8 @@ def save_hls_m3u8_list_file():
         # print('sequence', sequence)
     except Exception as ex:
         pass
-    path = os.path.normpath(storage_dir + '/live.m3u8')
-    # print('m3u8地址', path)
-    with open(path, mode='w+') as file:
+
+    with open(storage_dir + '/live.m3u8', mode='w+') as file:
         file.writelines([
             '#EXTM3U\n',
             '#EXT-X-VERSION:3\n',
@@ -145,7 +166,7 @@ def save_hls_m3u8_list_file():
 
 
 def get_ts_file_name(ts_url):
-    return parse.urlparse(ts_url).path.split('/')[-1]
+    return ts_url.split('/')[-1].split('?')[0].split('#')[0]
 
 
 def parse_args():
@@ -168,8 +189,7 @@ def run(dir: str, video_url: str, proxy: str):
             'http': proxy,
             'https': proxy,
         }
-
-    main(dir=dir, url=video_url, clear=False)
+    main(dir=dir, video_url=video_url, clear=False)
 
 
 if __name__ == '__main__':

@@ -1,3 +1,3 @@
 set mypath=%cd%
 
-start python %mypath%\main.py
+start python %mypath%\test.py

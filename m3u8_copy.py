@@ -11,6 +11,7 @@ import requests
 from fake_useragent import UserAgent
 
 import str_md5
+from m3u8_key import M3u8Key
 
 regex = r"vod\/(.*)\/master\.m3u8"
 
@@ -20,7 +21,10 @@ i = 0
 
 GoOn = True
 
-proxies = {}
+proxies = {
+    'http': 'http://127.0.0.1:1087',
+    'https': 'http://127.0.0.1:1087',
+}
 
 
 def shutdown(signalnum, frame):
@@ -29,7 +33,7 @@ def shutdown(signalnum, frame):
     GoOn = False
 
 
-def main(dir: str, url, clear):
+def main(dir: str, clear):
     # for sig in [signal.SIGINT, signal.SIGHUP, signal.SIGTERM, signal.SIGKILL]:
     signal.signal(signal.SIGINT, shutdown)
 
@@ -47,45 +51,51 @@ def main(dir: str, url, clear):
     if not os.path.exists(storage_dir):
         os.mkdir(storage_dir)
 
-    ts_url_folder = '/'.join(url.split('/')[:-1])
+    get_m3u8_url_last_time = 0
 
+    url = None
     # 不断循环
     while GoOn:
+        if time.time() - get_m3u8_url_last_time > 60:
+            temp_url = get_m3u8_url()
+            if temp_url is not None:
+                url = temp_url
+                get_m3u8_url_last_time = time.time()
+        if url is None:
+            continue
         m3u8_content = requests.get(url, proxies=proxies).text
         if "#EXTM3U" not in m3u8_content:
             print("内容不符合M3U8的格式")
         file_line = m3u8_content.split("\n")
         for index, line in enumerate(file_line):
             if "EXTINF" in line:  # 找ts地址并下载
-                ts_url = ts_url_folder + '/' + file_line[index + 1]  # 下一行就是ts网址
+                ts_url = file_line[index + 1]  # 下一行就是ts网址
                 ts_file_name = get_ts_file_name(ts_url)
                 md5 = str_md5.to_md5(ts_file_name)
                 if md5 not in ts_list:
                     ts_list[md5] = (ts_file_name, False)
-                    queue.apply_async(download_ts_file, (ts_file_name, ts_url, md5, storage_dir))
+                    queue.apply_async(download_ts_file, (ts_file_name, ts_url, md5))
 
         save_hls_m3u8_list_file()
-        time.sleep(5)
+        time.sleep(1)
 
     queue.close()
     queue.join()
 
 
-def download_ts_file(ts_name, ts_url, md5, save_dir):
-    print('开始下载', ts_url)
-    try:
-        res = requests.get(ts_url, proxies=proxies, timeout=20)
-        if res.status_code != 200:
-            raise Exception('404')
-        content = res.content
-        save_dir = os.path.normpath(save_dir + '/' + ts_name)
-        # print('保存ts路径', save_dir)
-        with open(save_dir, 'wb') as file:
-            file.write(content)
-        print('保存成功', save_dir)
-        ts_list[md5] = (ts_name, True)
-    except Exception as ex:
-        print('TS文件下载失败', ts_name)
+def download_ts_file(ts_name, ts_url, md5):
+    success = False
+    while success is False:
+        print('开始下载', ts_name)
+        try:
+            content = requests.get(ts_url, proxies=proxies, timeout=20).content
+            with open(storage_dir + '/' + ts_name, 'wb') as file:
+                file.write(content)
+                success = True
+            print('保存成功', ts_name)
+            ts_list[md5] = (ts_name, True)
+        except Exception as ex:
+            print('TS文件下载超时', ts_name)
 
 
 def get_m3u8_url():
@@ -130,9 +140,8 @@ def save_hls_m3u8_list_file():
         # print('sequence', sequence)
     except Exception as ex:
         pass
-    path = os.path.normpath(storage_dir + '/live.m3u8')
-    # print('m3u8地址', path)
-    with open(path, mode='w+') as file:
+
+    with open(storage_dir + '/live.m3u8', mode='w+') as file:
         file.writelines([
             '#EXTM3U\n',
             '#EXT-X-VERSION:3\n',
@@ -159,17 +168,8 @@ def parse_args():
     return kwargs
 
 
-def run(dir: str, video_url: str, proxy: str):
-    global proxies
-    if len(proxy) == 0:
-        proxies = {}
-    else:
-        proxies = {
-            'http': proxy,
-            'https': proxy,
-        }
-
-    main(dir=dir, url=video_url, clear=False)
+def run(dir: str):
+    main(dir=dir, clear=False)
 
 
 if __name__ == '__main__':

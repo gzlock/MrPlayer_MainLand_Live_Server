@@ -1,3 +1,4 @@
+pyperclip
 jinja2
 Pillow
 pyquery

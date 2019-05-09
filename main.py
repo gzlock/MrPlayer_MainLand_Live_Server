@@ -1,24 +1,24 @@
-import multiprocessing
 import os
+import shutil
 import socket
 import sys
-import webbrowser
+import tkinter
+from multiprocessing import freeze_support, Process
+from time import sleep
+from tkinter import filedialog, messagebox
 from urllib.parse import urlparse
-from sys import platform
+from webbrowser import open
 
-import PySimpleGUI as sg
+from fake_useragent import UserAgent
+from pyperclip import copy
 import requests
 
 import client_server
-import client_m3u8
 import create_list
+import m3u8
+import mul_process_package
 
-font = ''
-
-if platform == "darwin":
-    font = 'a'
-elif platform == "win32":
-    font = 'Msyh'
+mul_process_package.ok()
 
 
 # 生成资源文件目录访问路径
@@ -32,7 +32,7 @@ def resource_path(relative_path):
 
 def is_number(s) -> bool:
     try:
-        float(s)
+        int(s)
         return True
     except ValueError:
         pass
@@ -47,233 +47,489 @@ def is_number(s) -> bool:
     return False
 
 
-def is_dir_empty(dir: str) -> bool:
-    return len(os.listdir(dir)) == 0
+def start_server():
+    global is_working
+    is_working = True
+    port.config(state='readonly')
+    start_btn.config(state=tkinter.DISABLED)
+    stop_btn.config(state=tkinter.NORMAL)
+    video_url.config(state='readonly')
+    danmaku_url.config(state='readonly')
+
+    ip_frame.pack()
 
 
+def stop_server():
+    global is_working
+    is_working = False
+    port.config(state=tkinter.NORMAL)
+    start_btn.config(state=tkinter.NORMAL)
+    stop_btn.config(state=tkinter.DISABLED)
+    video_url.config(state=tkinter.NORMAL)
+    danmaku_url.config(state=tkinter.NORMAL)
+
+    ip_frame.pack_forget()
+
+
+# 广域网ip
 def get_wan_ip() -> str:
     res = requests.get('http://ip.360.cn/IPShare/info')
     return res.json()['ip']
 
 
+# 局域网ip
 def get_lan_ip() -> str:
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         # doesn't even have to be reachable
         s.connect(('8.8.8.8', 80))
-        IP = s.getsockname()[0]
+        ip = s.getsockname()[0]
     except:
-        IP = '127.0.0.1'
+        ip = '127.0.0.1'
     finally:
         s.close()
-    return IP
+    return ip
 
 
-def is_full_url(_url: str) -> bool:
+def has_ffmpeg() -> bool:
+    check_ffmpeg = os.popen('ffmpeg -version').read()
+    return 'ffmpeg version' in check_ffmpeg
+
+
+def disable_child(frame: tkinter.Widget, state, without: list):
+    for child in frame.winfo_children():
+        if type(child) == tkinter.Frame:
+            disable_child(child, state, without=without)
+        elif child not in without:
+            child.config(state=state)
+
+
+def is_url(_url: str) -> bool:
     _url = urlparse(_url)
     if _url.scheme not in ['http', 'https'] or len(_url.netloc) < 5:
         return False
     return True
 
 
-def create_final_mp4(video_dir: str) -> bool:
-    check_ffmpeg = os.popen('ffmpeg -version').read()
+def test_connect(video_url: str, proxy: str) -> str:
+    """
+    :param video_url:
+    :param proxy:
+    :return: 'ok'||'NeedTWIP'||'NotM3u8'||'ProxyError'||'ConnectError'
+    """
+    has_proxy = len(proxy) > 0
+    proxies = {}
+    if has_proxy:
+        proxies = {'http': proxy, 'https': proxy}
+    headers = {
+        "User-Agent": UserAgent().random,
+        'cache-control': "no-cache",
+        'content-type': "application/x-www-form-urlencoded",
+        "Pragma": "no-cache",
+        "Accept-Language": "zh-CN,zh;q=0.8,en-US;q=0.6,en;q=0.4",
+    }
+    try:
+        if video_url == '1':
+            res = requests.request("POST",
+                                   "https://api2.4gtv.tv/Channel/GetChannelUrl",
+                                   data='"fnCHANNEL_ID=4&fsASSET_ID=4gtv-4gtv040&fsDEVICE_TYPE=pc&clsIDENTITY_VALIDATE_ARUS%5BfsVALUE%5D=123"',
+                                   headers=headers,
+                                   proxies=proxies,
+                                   timeout=5)
+            if res.status_code is not 200 or 'flstURLs' not in res.text:
+                return 'NeedTWIP'
+            print(res.json()['Data']['flstURLs'][0])
 
-    if 'ffmpeg version' not in check_ffmpeg:
-        return False
-    os.system('sh {}/create_mp4.sh'.format(video_dir))
-    return True
+            return 'ok'
+        else:
+            res = requests.get(video_url, proxies=proxies, headers=headers)
+            if res.status_code is not 200 or '#EXTM3U' not in res.text:
+                return 'NotM3u8'
+            return 'ok'
+
+    except Exception as e:
+        print(e.__str__())
+        if 'ProxyError' in e.__str__():
+            return 'ProxyError'
+        return 'ConnectError'
 
 
-def stop_process():
-    if is_working:
-        m3u8_process.kill()
-        server_process.kill()
+class BaseLayout:
+    layout: tkinter.Widget
+    without_disable: list = []
+
+    def disable(self, disabled: bool):
+        state = tkinter.NORMAL
+        if disabled:
+            state = tkinter.DISABLED
+        disable_child(self.layout, state=state, without=self.without_disable)
 
 
-layout = [
-    [sg.Text('欢迎使用玩很大转播程序', )],
-    [
-        sg.Image(filename=resource_path('./logo.gif')),
-        sg.Text('home.js2.me这个源每周六夜晚9点55分钟左右会开启\n在这个时间打开这个软件即可\n周六夜晚12点后就可以关闭了'),
-    ],
-    [
-        sg.Text('视频缓存目录', size=(15, 1), auto_size_text=False, justification='right'),
-        sg.InputText('', disabled=True, key='video_dir_input'),
-        sg.FolderBrowse(button_text='设置目录', key='folder_btn')
-    ],
-    [
-        sg.Text('网站端口', size=(15, 1), auto_size_text=False, justification='right'),
-        sg.InputText('2334', key='port_input'),
-    ],
-    [
-        sg.Text('视频源', size=(15, 1), auto_size_text=False, justification='right'),
-        sg.InputText('http://home.js2.me:2333/video/live.m3u8', key='video_url_input'),
-        sg.Text('必填', font='Helvetica 10'),
-    ],
-    [
-        sg.Text('弹幕源', size=(15, 1), auto_size_text=False, justification='right'),
-        sg.InputText('http://home.js2.me:2333/danmaku', key='danmaku_url_input'),
-        sg.Text('可为空', font='Helvetica 10'),
-    ],
-    [
-        sg.Text('HTTP代理', size=(15, 1), auto_size_text=False, justification='right'),
-        sg.InputText('', key='proxy_input'),
-        sg.Text('可为空', font='Helvetica 10'),
-    ],
-    [
-        sg.Text('广域网网址', size=(15, 1), auto_size_text=False, justification='right'),
-        sg.InputText('', key='wan_url_input', disabled=True, ),
-        sg.Butt('打开', key='wan_url_btn', font='Helvetica 10', disabled=True),
-    ],
-    [
-        sg.Text('局域网网址', size=(15, 1), auto_size_text=False, justification='right'),
-        sg.InputText('', key='lan_url_input', disabled=True),
-        sg.Butt('打开', key='lan_url_btn', font='Helvetica 10', disabled=True),
-    ],
-    [
-        sg.Button('开启服务', key='start_server_btn'),
-        sg.Button('关闭服务', disabled=True, key='stop_server_btn'),
-        sg.Button('清空缓存', key='clear_video_cache'),
-        sg.Button('合并视频', key='create_final_mp4'),
-    ],
-    [
-        sg.Text('本软件的愿景：让宪迷都可以每周六22点准时收看玩很大\n'
-                '在此希望：请向其他人分享你的广域网网址(很多人都可以看到)或局域网网址(同一个局域网的人都可以看到)', font=font + ' 10'),
-    ],
-    # [
-    #     sg.Text('在此希望：运行本软件的宪迷向其他人分享您的广域网网址，前提是你需要有公网IP', font='Helvetica 10'),
-    # ],
-    [
-        sg.Button('联系开发者(QQ群)', key='chat_with_developer', font=font + ' 10'),
-        sg.Button('百度吴宗宪吧', key='open_tieba', font=font + ' 10'),
-    ],
-]
+class LocalForm(BaseLayout):
 
-server_process = None
-m3u8_process = None
-is_working = False
+    def __init__(self, root) -> None:
+        super().__init__()
+
+        # 视频 缓存 目录
+        self.layout = layout = tkinter.LabelFrame(root, text='本地设置')
+        layout.pack(fill=tkinter.BOTH, padx=5, pady=5)
+
+        frame = tkinter.Frame(layout)
+        frame.pack(fill=tkinter.BOTH, pady=5)
+        tkinter.Label(frame, text='缓存目录', width=7, anchor=tkinter.E).pack(side=tkinter.LEFT)
+
+        self.__video_cache = tkinter.StringVar()
+        input = tkinter.Entry(frame, state='readonly', textvariable=self.__video_cache)
+        input.pack(fill=tkinter.X, side=tkinter.LEFT,
+                   expand=True)
+        tkinter.Button(frame, text='选择目录', command=self.__select_folder).pack(side=tkinter.RIGHT, padx=2)
+        self.without_disable.append(input)
+
+        # 服务 端口
+        frame = tkinter.Frame(layout)
+        frame.pack(fill=tkinter.BOTH, pady=5)
+
+        tkinter.Label(frame, text='网站端口', width=7, anchor=tkinter.E).pack(side=tkinter.LEFT)
+
+        self.__port = tkinter.StringVar()
+        self.__port.set('2333')
+        tkinter.Entry(frame, textvariable=self.__port).pack(fill=tkinter.BOTH, padx=2, expand=True)
+
+    def __select_folder(self):
+        self.__video_cache.set(filedialog.askdirectory(title='选择要存放视频缓存的目录'))
+
+    def port(self):
+        return self.__port.get()
+
+    def video_cache_dir(self):
+        return self.__video_cache.get()
+
+
+class VideoUrlForm(BaseLayout):
+
+    def __init__(self, root) -> None:
+        super().__init__()
+        self.layout = layout = tkinter.LabelFrame(root, text='网络源设置(*为必填)')
+        layout.pack(fill=tkinter.BOTH, padx=5, pady=5)
+
+        # 直播源 选择
+        self.__select = select = tkinter.StringVar()
+        select.set('1')
+        frame = tkinter.Frame(layout)
+        frame.pack(fill=tkinter.BOTH)
+        tkinter.Radiobutton(frame, text='四季TV视频源（需要台湾IP）', variable=select, value='1').pack(anchor=tkinter.W)
+        tkinter.Radiobutton(frame, text='软件开发者的视频源（每周六晚21点55分左右开启）', variable=select, value='2').pack(
+            anchor=tkinter.W)
+        tkinter.Radiobutton(frame, text='自填', variable=select, value='3').pack(anchor=tkinter.W)
+        select.trace('w', callback=self.__radio_change)
+
+        # 直播源 输入框
+        self.__video_frame = frame = tkinter.Frame(layout)
+
+        tkinter.Label(frame, text='直播源(*)', width=8, anchor=tkinter.E).pack(side=tkinter.LEFT, padx=5, pady=5)
+        self.__video = tkinter.StringVar()
+        tkinter.Entry(frame, textvariable=self.__video).pack(fill=tkinter.X, padx=5, expand=True)
+
+        # 弹幕源 输入框
+        self.__danmaku_frame = frame = tkinter.Frame(layout)
+
+        tkinter.Label(frame, text='弹幕源', width=8, anchor=tkinter.E).pack(side=tkinter.LEFT, padx=5, pady=5)
+        self.__danmaku = tkinter.StringVar()
+        tkinter.Entry(frame, textvariable=self.__danmaku).pack(fill=tkinter.X, padx=5, expand=True)
+
+        # 代理 输入框
+        frame = tkinter.Frame(layout)
+        frame.pack(fill=tkinter.BOTH)
+        tkinter.Label(frame, text='网络代理', width=8, anchor=tkinter.E).pack(side=tkinter.LEFT, padx=5, pady=5)
+        self.__proxy = tkinter.StringVar()
+        tkinter.Entry(frame, textvariable=self.__proxy).pack(fill=tkinter.X, padx=5, expand=True)
+
+        self.__radio_change()
+
+    def __radio_change(self, *args):
+        select = self.__select.get()
+        if select == '1':
+            self.__video.set('1')
+            self.__danmaku.set('')
+            self.__video_frame.pack_forget()
+            self.__danmaku_frame.pack(fill=tkinter.BOTH)
+
+        elif select == '2':
+            self.__video.set('http://home.js2.me:2333/video/live.m3u8')
+            self.__danmaku.set('http://home.js2.me:2333/danmaku')
+            self.__video_frame.pack_forget()
+            self.__danmaku_frame.pack_forget()
+
+        else:
+            self.__video.set('')
+            self.__danmaku.set('')
+            self.__video_frame.pack(fill=tkinter.BOTH)
+            self.__danmaku_frame.pack(fill=tkinter.BOTH)
+
+    def video_url(self) -> str:
+        return self.__video.get()
+
+    def danmaku_url(self) -> str:
+        return self.__danmaku.get()
+
+    def proxy_url(self) -> str:
+        return self.__proxy.get()
+
+
+class UrlForm(BaseLayout):
+
+    def __init__(self, root) -> None:
+        super().__init__()
+        self.layout = tkinter.LabelFrame(root, text='向其他人分享您的：')
+        self.layout.pack(fill=tkinter.BOTH, padx=5, pady=5)
+        self.lan_ip = tkinter.StringVar()
+        self.wan_ip = tkinter.StringVar()
+
+        frame = tkinter.Frame(self.layout)
+        frame.pack(fill=tkinter.BOTH, padx=5, pady=5)
+        tkinter.Label(frame, text='局域网网址').pack(side=tkinter.LEFT)
+        input = tkinter.Entry(frame, textvariable=self.lan_ip, state='readonly')
+        input.pack(fill=tkinter.BOTH)
+        self.without_disable.append(input)
+
+        frame = tkinter.Frame(self.layout)
+        frame.pack(fill=tkinter.BOTH, padx=5, pady=5)
+        tkinter.Button(frame, text='打开', command=lambda: UrlForm.open(self.lan_ip.get())).pack(side=tkinter.RIGHT)
+        tkinter.Button(frame, text='复制', command=lambda: UrlForm.copy(self.lan_ip.get())).pack(side=tkinter.RIGHT)
+
+        frame = tkinter.Frame(self.layout)
+        frame.pack(fill=tkinter.BOTH, padx=5, pady=5)
+        tkinter.Label(frame, text='广域网网址').pack(side=tkinter.LEFT)
+        input = tkinter.Entry(frame, textvariable=self.wan_ip, state='readonly')
+        input.pack(fill=tkinter.BOTH)
+        self.without_disable.append(input)
+
+        frame = tkinter.Frame(self.layout)
+        frame.pack(fill=tkinter.BOTH, padx=5, pady=5)
+        tkinter.Button(frame, text='打开', command=lambda: UrlForm.open(self.wan_ip.get())).pack(side=tkinter.RIGHT)
+        tkinter.Button(frame, text='复制', command=lambda: UrlForm.copy(self.wan_ip.get())).pack(side=tkinter.RIGHT)
+
+    def show(self):
+        self.layout.pack()
+
+    def hide(self):
+        self.layout.pack_forget()
+
+    def set_ip(self, port: str):
+        url = 'http://{}:{}'
+        self.lan_ip.set(url.format(get_lan_ip(), port))
+        self.wan_ip.set(url.format(get_wan_ip(), port))
+
+    def clear_ip(self):
+        self.lan_ip.set('')
+        self.wan_ip.set('')
+
+    @staticmethod
+    def copy(text: str):
+        copy(text)
+
+    @staticmethod
+    def open(text: str):
+        open(text)
+
+
+class ButtonsFrame:
+    __m3u8_process = None
+    __server_process = None
+
+    def __init__(self, root, local_frame: LocalForm, video_frame: VideoUrlForm, url_frame: UrlForm) -> None:
+        super().__init__()
+
+        frame = tkinter.Frame(root)
+        frame.pack(fill=tkinter.BOTH, padx=5, pady=5)
+
+        self.local_frame = local_frame
+        self.video_frame = video_frame
+        self.url_frame = url_frame
+
+        # 启动 服务
+        self.start_btn = start_btn = tkinter.Button(frame, text='启动转播', command=self.start)  # 生成button1
+        start_btn.pack(side=tkinter.LEFT)  # 将button1添加到root主窗口
+
+        # 停止 服务
+        self.stop_btn = stop_btn = tkinter.Button(frame, text='停止转播', command=self.stop, state=tkinter.DISABLED)
+        stop_btn.pack(side=tkinter.LEFT, padx=5)
+
+        # 合并视频文件
+        self.create_mp4_btn = create_mp4_btn = tkinter.Button(frame, text='合并视频', command=self.create_mp4)
+        create_mp4_btn.pack(side=tkinter.LEFT, padx=5)
+
+        # 清空视频缓存
+        self.clear_cache_btn = clear_cache_btn = tkinter.Button(frame, text='清空缓存', command=self.clear_cache)
+        clear_cache_btn.pack(side=tkinter.RIGHT)
+
+        self.is_start = False
+
+        self.stop()
+
+    # 检查缓存目录
+    def check_video_cache_dir(self):
+        video_cache_dir = self.local_frame.video_cache_dir()
+        if len(video_cache_dir) == 0:
+            tkinter.messagebox.showerror('错误', '请选择缓存目录')
+            return False
+        video_cache_dir = os.path.abspath(video_cache_dir)
+        if not os.path.exists(video_cache_dir):
+            os.mkdir(video_cache_dir)
+        return video_cache_dir
+
+    def start_process(self):
+
+        video_cache_dir = self.check_video_cache_dir()
+        if not video_cache_dir:
+            return
+
+        # 检查端口
+        port = self.local_frame.port()
+        if not is_number(port):
+            return tkinter.messagebox.showerror('错误', '端口只能是数字')
+        port = int(port)
+        if port < 2000 or port > 60000:
+            return tkinter.messagebox.showerror('错误', '端口只能从2000到60000')
+
+        # print(video_cache_dir, port)
+
+        # 检查 三个网址
+        video_url = self.video_frame.video_url()
+        danmaku_url = self.video_frame.danmaku_url()
+        proxy_url = self.video_frame.proxy_url()
+        # print(video_url, danmaku_url, proxy_url)
+
+        if len(video_url) == 0:
+            return tkinter.messagebox.showerror('错误', '请填写视频源网址')
+        else:
+            if video_url != '1' and not is_url(video_url):
+                return tkinter.messagebox.showerror('错误', '视频源的格式错误，只接受:\nhttp:\\\\xxx\n的格式')
+
+        if len(danmaku_url) > 0 and not is_url(danmaku_url):
+            return tkinter.messagebox.showerror('错误', '弹幕源的格式错误，只接受:\nhttp:\\\\xxx\n的格式')
+
+        if len(proxy_url) > 0:
+            if not is_url(proxy_url):
+                return tkinter.messagebox.showerror('错误', '代理的格式错误，只接受:\nhttp:\\\\xxx\n的格式')
+
+        check = test_connect(video_url, proxy_url)
+        if check != 'ok':
+            has_proxy = len(proxy_url) > 0
+            title = '连接错误'
+            if has_proxy:
+                title = '代理服务器出现错误'
+            message = title
+            if check == 'NeedTWIP':
+                message = '需要台湾IP'
+            elif check == 'ProxyError':
+                message = '连接不到代理服务器'
+            elif check == 'NotM3u8':
+                message = '网络视频源返回的不是M3u8文件格式'
+            return tkinter.messagebox.showerror(title, message)
+
+        self.__m3u8_process = Process(target=m3u8.run, args=(video_cache_dir, video_url, proxy_url))
+        self.__m3u8_process.start()
+
+        self.__server_process = Process(target=client_server.run, args=(port, video_cache_dir, danmaku_url))
+        self.__server_process.start()
+
+        return '123ok'
+
+    def start(self):
+        if self.start_process() != '123ok':
+            return
+        self.is_start = True
+
+        self.local_frame.disable(True)
+        self.video_frame.disable(True)
+        self.url_frame.disable(False)
+        self.start_btn.config(state=tkinter.DISABLED)
+        self.stop_btn.config(state=tkinter.NORMAL)
+        self.clear_cache_btn.config(state=tkinter.DISABLED)
+        self.create_mp4_btn.config(state=tkinter.DISABLED)
+
+        self.url_frame.set_ip(port=self.local_frame.port())
+
+    def stop(self):
+        if self.__server_process is not None:
+            self.__m3u8_process.kill()
+            self.__server_process.kill()
+
+        self.is_start = False
+
+        self.local_frame.disable(False)
+        self.video_frame.disable(False)
+        self.url_frame.disable(True)
+        self.start_btn.config(state=tkinter.NORMAL)
+        self.stop_btn.config(state=tkinter.DISABLED)
+        self.clear_cache_btn.config(state=tkinter.NORMAL)
+        self.create_mp4_btn.config(state=tkinter.NORMAL)
+
+        self.url_frame.clear_ip()
+
+    def clear_cache(self):
+        dir = self.check_video_cache_dir()
+        if not dir:
+            return
+        i = 0
+        true = True
+        title = '高危操作，确认3次，当前第 {} 次'
+        while true and i < 3:
+            true = true and tkinter.messagebox.askokcancel(title.format(i + 1),
+                                                           dir + '\n将会清空视频缓存文件夹内所有文件，确认清空？')
+            i += 1
+        if not true:
+            return
+        if os.path.exists(dir):
+            try:
+                shutil.rmtree(dir)
+                sleep(0.2)
+                os.mkdir(dir)
+            except Exception as e:
+                tkinter.messagebox.showerror('出现错误', '清空文件夹失败\n' + dir)
+
+    def create_mp4(self):
+        video_cache_dir = self.check_video_cache_dir()
+        if not video_cache_dir:
+            return
+        if not create_list.has_file(video_cache_dir):
+            return tkinter.messagebox.showerror('错误', '缓存文件夹内没有.ts文件')
+        create_list.run(video_cache_dir)
+        os.system('sh {}/create_mp4.sh'.format(video_cache_dir))
+        pass
+
 
 if __name__ == '__main__':
+    freeze_support()
 
-    if sys.platform.startswith('win'):
-        multiprocessing.freeze_support()
+    root = tkinter.Tk()
+    root.title('综艺玩很大 转播程序 v0.3')
+    root.iconbitmap(resource_path('./icon.ico'))
+    # 禁止改变窗口大小
+    root.resizable(False, False)
 
-    window = sg.Window('玩很大转播程序 v0.2', layout, font=font + ' 14', resizable=False)
+    # 流程开始
 
-    while True:  # Event Loop
-        event, values = window.Read()
-        print(event, values)
+    local = LocalForm(root=root)
 
-        if event in [None, 'Exit']:
-            print('is_working', is_working)
-            if is_working:
-                if sg.PopupOKCancel('转播程序正在运作，确认退出？', '警告') is 'OK':
-                    stop_process()
-                    break
-            else:
-                break
+    video = VideoUrlForm(root=root)
 
-        video_dir = values['video_dir_input']
-        video_url = values['video_url_input']
-        danmaku_url = values['danmaku_url_input']
-        port = values['port_input']
-        proxy = values['proxy_input']
+    url = UrlForm(root=root)
 
-        if event == 'start_server_btn':
+    buttons = ButtonsFrame(root=root, local_frame=local, video_frame=video, url_frame=url)
 
-            if len(video_dir) is 0:
-                sg.Popup('请选择缓存目录', title='错误', font='Helvetica 14')
-                continue
 
-            video_dir = os.path.abspath(video_dir)
+    def on_closing():
+        if buttons.is_start:
+            if messagebox.askokcancel('警告', '转播程序正在工作，确认退出？'):
+                buttons.stop()
+                root.destroy()
+        else:
+            root.destroy()
 
-            if is_number(port) is False:
-                sg.Popup('端口只能使用数字', title='错误', font='Helvetica 14')
-                continue
 
-            port = int(port)
-            if port < 2000:
-                sg.Popup('端口必须要大于2000', title='错误', font='Helvetica 14')
-                continue
+    root.protocol("WM_DELETE_WINDOW", on_closing)
 
-            if is_full_url(video_url) is False:
-                sg.Popup('视频源网址有误', title='错误', non_blocking=False, font='Helvetica 14')
-                continue
-
-            if len(danmaku_url) > 0 and is_full_url(danmaku_url) is False:
-                sg.Popup('弹幕源网址有误', title='错误', non_blocking=False, font='Helvetica 14')
-                continue
-
-            if is_dir_empty(video_dir) is False:
-                goon = sg.PopupOKCancel('视频缓存目录有文件，还要继续使用吗？\n这个目录有可能会被清空！', title='警告')
-                print('goon', goon, type(goon))
-                if goon is 'Cancel':
-                    continue
-
-            window.Element('start_server_btn').Update(disabled=True)
-            window.Element('stop_server_btn').Update(disabled=False)
-            window.Element('folder_btn').Update(disabled=True)
-            window.Element('port_input').Update(disabled=True)
-            window.Element('video_url_input').Update(disabled=True)
-            window.Element('danmaku_url_input').Update(disabled=True)
-            window.Element('proxy_input').Update(disabled=True)
-
-            url = 'http://{}:{}'
-            window.Element('lan_url_input').Update(url.format(get_lan_ip(), port))
-            window.Element('wan_url_input').Update(url.format(get_wan_ip(), port))
-            window.Element('lan_url_btn').Update(disabled=False)
-            window.Element('wan_url_btn').Update(disabled=False)
-
-            m3u8_process = multiprocessing.Process(target=client_m3u8.run, args=(video_dir, video_url, proxy,))
-            m3u8_process.start()
-
-            server_process = multiprocessing.Process(target=client_server.run, args=(port, video_dir, danmaku_url,))
-            server_process.start()
-
-            is_working = True
-
-        elif event == 'stop_server_btn':
-            window.Element('start_server_btn').Update(disabled=False)
-            window.Element('stop_server_btn').Update(disabled=True)
-            window.Element('folder_btn').Update(disabled=False)
-            window.Element('folder_btn').Update(disabled=False)
-            window.Element('port_input').Update(disabled=False)
-            window.Element('video_url_input').Update(disabled=False)
-            window.Element('danmaku_url_input').Update(disabled=False)
-            window.Element('proxy_input').Update(disabled=False)
-
-            window.Element('lan_url_input').Update('')
-            window.Element('wan_url_input').Update('')
-            window.Element('lan_url_btn').Update(disabled=True)
-            window.Element('wan_url_btn').Update(disabled=True)
-
-            stop_process()
-            is_working = False
-
-        elif event == 'wan_url_btn':
-            webbrowser.open(values['wan_url_input'])
-
-        elif event == 'lan_url_btn':
-            webbrowser.open(values['lan_url_input'])
-
-        elif event == 'clear_video_cache' and len(video_dir) > 0:
-            confirm = sg.PopupOKCancel('确认清空视频缓存目录？\n' + video_dir, '危险操作')
-            if confirm is 'OK':
-                print('清空目录')
-
-        elif event == 'create_final_mp4':
-            create_list.run(video_dir)
-            if create_final_mp4(video_dir) is False:
-                sg.Popup('没有安装FFmpeg，无法合并视频', '错误')
-                continue
-            print('合并视频中')
-
-        elif event == 'chat_with_developer':
-            webbrowser.open(
-                'https://shang.qq.com/wpa/qunwpa?idkey=c93fa2d0819d8405ed6468d48126e7ac2644a716dec65b4353355944ec6a426f')
-        elif event == 'open_tieba':
-            webbrowser.open(
-                'http://tieba.baidu.com/f?kw=吴宗宪&ie=utf-8')
-
-    window.Close()
+    # 进入消息循环
+    root.mainloop()
