@@ -14,12 +14,6 @@ def save(storage_dir):
     with open(list_path, 'w+') as file:
         file.writelines(files)
 
-    path = storage_dir + '/create_mp4.sh'
-    output = storage_dir + '/' + 'final'
-    with open(path, 'w+') as file:
-        file.write(
-            '#! /bin/bash\nffmpeg -f concat -safe 0 -i {} -c copy {}.mp4 -y && echo "完成"'.format(list_path, output))
-
 
 def parse_args():
     """
@@ -39,7 +33,3 @@ def has_file(dir: str) -> bool:
 
 if __name__ == '__main__':
     save(**parse_args())
-
-
-def run(dir: str):
-    save(storage_dir=dir)
