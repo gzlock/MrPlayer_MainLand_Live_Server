@@ -27,7 +27,7 @@ class Frame(baseFrame):
         frame = tkinter.Frame(self.layout)
         frame.pack(fill=tkinter.BOTH, padx=5, pady=5)
         tkinter.Button(frame, text='打开', command=lambda: open(self.lan_ip.get())).pack(side=tkinter.RIGHT)
-        tkinter.Button(frame, text='复制', command=lambda: copy(self.lan_ip.get())).pack(side=tkinter.RIGHT)
+        tkinter.Button(frame, text='复制', command=lambda: copy(self.lan_ip.get())).pack(side=tkinter.RIGHT, padx=5)
 
         frame = tkinter.Frame(self.layout)
         frame.pack(fill=tkinter.BOTH, padx=5, pady=5)
@@ -39,7 +39,7 @@ class Frame(baseFrame):
         frame = tkinter.Frame(self.layout)
         frame.pack(fill=tkinter.BOTH, padx=5, pady=5)
         tkinter.Button(frame, text='打开', command=lambda: open(self.wan_ip.get())).pack(side=tkinter.RIGHT)
-        tkinter.Button(frame, text='复制', command=lambda: copy(self.wan_ip.get())).pack(side=tkinter.RIGHT)
+        tkinter.Button(frame, text='复制', command=lambda: copy(self.wan_ip.get())).pack(side=tkinter.RIGHT, padx=5)
 
     def show(self):
         self.layout.pack()

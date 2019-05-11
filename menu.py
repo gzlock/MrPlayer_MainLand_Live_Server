@@ -11,7 +11,7 @@ class Menu:
         helpmenu = tkMenu(menubar, tearoff=0)
         menubar.add_cascade(label="帮助", menu=helpmenu)
 
-        helpmenu.add_command(label="清空输入框的缓存", command=lambda: cache.clear())
+        helpmenu.add_command(label="清空输入框的缓存(重启见效)", command=lambda: cache.clear())
         helpmenu.add_command(label="报告软件问题(QQ群)", command=lambda: open(
             'https://shang.qq.com/wpa/qunwpa?idkey=c93fa2d0819d8405ed6468d48126e7ac2644a716dec65b4353355944ec6a426f'))
         helpmenu.add_command(label="本软件开源(Github)", command=lambda: open(
