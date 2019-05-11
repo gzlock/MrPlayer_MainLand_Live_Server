@@ -45,9 +45,11 @@ def is_int(s) -> bool:
 
     return False
 
+
 def move_to_screen_center(target):
     width = target.winfo_screenwidth()
     height = target.winfo_screenheight()
     x = int((width - target.winfo_reqwidth()) / 2)
     y = int((height - target.winfo_reqheight()) / 2)
     target.geometry('+{}+{}'.format(x, y))
+    target.update()

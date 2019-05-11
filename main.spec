@@ -1,16 +1,23 @@
 # -*- mode: python -*-
 
+from sys import platform
+
 block_cipher = None
+
+if platform == 'win32':
+    path = 'E:\\'
+else:
+    path = '/Users/lock/Desktop/hls_downloader/'
 
 
 a = Analysis(['main.py'],
-             pathex=['E:\\'],
+             pathex=[path],
              binaries=[],
-             datas=[('E:\\icon.ico','.'), ('E:\\index.html','.')],
-             hiddenimports=[],
+             datas=[(path + 'icon.ico','.'),(path + 'index.html','.')],
+             hiddenimports=['engineio.async_drivers.sanic'],
              hookspath=[],
              runtime_hooks=[],
-             excludes=[],
+             excludes=['PyQt5'],
              win_no_prefer_redirects=False,
              win_private_assemblies=False,
              cipher=block_cipher,
@@ -25,9 +32,9 @@ exe = EXE(pyz,
           [],
           name='main',
           debug=False,
+          icon=path+'icon.ico',
           bootloader_ignore_signals=False,
           strip=False,
           upx=True,
           runtime_tmpdir=None,
-          console=True,
-          icon='icon.ico')
+          console=False )

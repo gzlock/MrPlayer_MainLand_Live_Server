@@ -1,6 +1,7 @@
+import sys
 import tkinter
 from multiprocessing import freeze_support
-from tkinter import messagebox as msgbox
+from tkinter import messagebox
 
 import layout_button
 import layout_local
@@ -45,7 +46,7 @@ if __name__ == '__main__':
 
     def on_closing():
         if buttons.is_start:
-            if msgbox.askokcancel('警告', '转播程序正在工作，确认退出？'):
+            if messagebox.askokcancel('警告', '转播程序正在工作，确认退出？'):
                 buttons.stop()
                 root.destroy()
         else:

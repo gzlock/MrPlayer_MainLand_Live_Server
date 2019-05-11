@@ -5,19 +5,17 @@ from multiprocessing import Process
 from shutil import rmtree
 from sys import platform
 from time import sleep
-from tkinter import messagebox as msgbox
+from tkinter import messagebox
 
 import create_list
 import layout_local
 import layout_url
 import layout_video
 import m3u8
-import mul_process_package
 import server
 import utils
 from test_connect import test_connect
 
-mul_process_package.ok()
 
 
 class Frame:
@@ -61,7 +59,7 @@ class Frame:
     def check_video_cache_dir(self):
         video_cache_dir = self.local_frame.video_cache_dir()
         if len(video_cache_dir) == 0:
-            msgbox.showerror('错误', '请选择缓存目录')
+            messagebox.showerror('错误', '请选择缓存目录')
             return False
         video_cache_dir = os.path.abspath(video_cache_dir)
         if not os.path.exists(video_cache_dir):
@@ -77,10 +75,10 @@ class Frame:
         # 检查端口
         port = self.local_frame.port()
         if not utils.is_int(port):
-            return msgbox.showerror('错误', '端口只能是数字')
+            return messagebox.showerror('错误', '端口只能是数字')
         port = int(port)
         if port < 2000 or port > 60000:
-            return msgbox.showerror('错误', '端口只能从2000到60000')
+            return messagebox.showerror('错误', '端口只能从2000到60000')
 
         create_danmaku: bool = self.local_frame.create_danmaku()
 
@@ -98,18 +96,18 @@ class Frame:
         # print(video_url, danmaku_url, proxy_url)
 
         if len(video_url) == 0:
-            return msgbox.showerror('错误', '请填写视频源网址')
+            return messagebox.showerror('错误', '请填写视频源网址')
         else:
-            if video_url != '1' and not is_url(video_url):
-                return msgbox.showerror('错误', '视频源的格式错误，只接受:\nhttp:\\\\xxx\n的格式')
+            if video_url != '1' and not utils.is_url(video_url):
+                return messagebox.showerror('错误', '视频源的格式错误，只接受:\nhttp:\\\\xxx\n的格式')
 
         if danmaku_url != '1':
-            if len(danmaku_url) > 0 and not is_url(danmaku_url):
-                return msgbox.showerror('错误', '弹幕源的格式错误，只接受:\nhttp:\\\\xxx\n的格式')
+            if len(danmaku_url) > 0 and not utils.is_url(danmaku_url):
+                return messagebox.showerror('错误', '弹幕源的格式错误，只接受:\nhttp:\\\\xxx\n的格式')
 
         if len(proxy_url) > 0:
-            if not is_url(proxy_url):
-                return msgbox.showerror('错误', '代理的格式错误，只接受:\nhttp:\\\\xxx\n的格式')
+            if not utils.is_url(proxy_url):
+                return messagebox.showerror('错误', '代理的格式错误，只接受:\nhttp:\\\\xxx\n的格式')
 
         check = test_connect(video_url, proxy_url)
         if check != 'ok':
@@ -126,7 +124,7 @@ class Frame:
                 message = '网络视频源 返回的不是M3u8文件格式'
             elif check == 'TimeOut':
                 message = '连接 网络视频源 超时(5秒)'
-            return msgbox.showerror(title, message)
+            return messagebox.showerror(title, message)
 
         self.__m3u8_process = Process(target=m3u8.run, args=(video_cache_dir, video_url, proxy_url))
         self.__m3u8_process.start()
@@ -181,8 +179,8 @@ class Frame:
         true = True
         title = '高危操作，确认3次，当前第 {} 次'
         while true and i < 3:
-            true = true and msgbox.askokcancel(title.format(i + 1),
-                                               dir + '\n将会清空视频缓存文件夹内所有文件，确认清空？')
+            true = true and messagebox.askokcancel(title.format(i + 1),
+                                                   dir + '\n将会清空视频缓存文件夹内所有文件，确认清空？')
             i += 1
         if not true:
             return
@@ -191,19 +189,19 @@ class Frame:
                 rmtree(dir)
                 sleep(0.2)
                 os.mkdir(dir)
-                msgbox.showinfo('清理完成', '成功清空视频缓存文件夹')
+                messagebox.showinfo('清理完成', '成功清空视频缓存文件夹')
             except Exception as e:
-                msgbox.showerror('出现错误', '清空文件夹失败\n' + dir + '\n' + e.__str__())
+                messagebox.showerror('出现错误', '清空文件夹失败\n' + dir + '\n' + e.__str__())
 
     def create_mp4(self):
         if not utils.has_ffmpeg():
-            return msgbox.showerror('错误', '没有安装 FFmpeg')
+            return messagebox.showerror('错误', '没有安装 FFmpeg')
 
         video_cache_dir = self.check_video_cache_dir()
         if not video_cache_dir:
             return
         if not create_list.has_file(video_cache_dir):
-            return msgbox.showerror('错误', '缓存文件夹内没有.ts文件')
+            return messagebox.showerror('错误', '缓存文件夹内没有.ts文件')
 
         create_list.save(video_cache_dir)
 
@@ -218,7 +216,7 @@ class Frame:
             return_code = process.wait()
             if return_code == 0:
                 # 合并final.mp4成功，打开文件
-                if msgbox.askyesno('合并文件成功', '是否打开文件夹？'):
+                if messagebox.askyesno('合并文件成功', '是否打开文件夹？'):
                     subprocess.Popen('explorer /select,"{}"'.format(final_mp4_path))
 
         elif platform == 'darwin':
