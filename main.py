@@ -2,6 +2,7 @@ import sys
 import tkinter
 from multiprocessing import freeze_support
 from tkinter import messagebox
+from sys import platform
 
 import layout_button
 import layout_local
@@ -24,7 +25,12 @@ if __name__ == '__main__':
 
     root = tkinter.Tk()
     root.title('综艺玩很大 转播程序 v0.5')
-    root.iconbitmap(resource_path.path('./icon.ico'))
+    # 设置windows窗口图标
+    if platform == 'win32':
+        icon = resource_path.path('icon.ico')
+        print('icon', icon)
+        root.iconbitmap(icon)
+
     # 禁止改变窗口大小
     root.resizable(False, False)
 

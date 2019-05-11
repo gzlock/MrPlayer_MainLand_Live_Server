@@ -2,18 +2,25 @@
 
 from sys import platform
 
-block_cipher = None
-
+datas = ['index.html', 'icon.ico', 'icon.icns']
 if platform == 'win32':
     path = 'E:\\'
+    icon = 'icon.ico'
 else:
     path = '/Users/lock/Desktop/hls_downloader/'
+    icon = 'icon.icns'
+
+datas = [(path + item,'.') for item in datas]
+
+print('datas', datas)
+
+block_cipher = None
 
 
 a = Analysis(['main.py'],
              pathex=[path],
              binaries=[],
-             datas=[(path + 'icon.ico','.'),(path + 'index.html','.')],
+             datas=datas,
              hiddenimports=['engineio.async_drivers.sanic'],
              hookspath=[],
              runtime_hooks=[],
@@ -22,8 +29,10 @@ a = Analysis(['main.py'],
              win_private_assemblies=False,
              cipher=block_cipher,
              noarchive=False)
+
 pyz = PYZ(a.pure, a.zipped_data,
              cipher=block_cipher)
+
 exe = EXE(pyz,
           a.scripts,
           a.binaries,
@@ -32,9 +41,12 @@ exe = EXE(pyz,
           [],
           name='main',
           debug=False,
-          icon=path+'icon.ico',
           bootloader_ignore_signals=False,
           strip=False,
           upx=True,
           runtime_tmpdir=None,
-          console=False )
+          console=False , icon=icon)
+app = BUNDLE(exe,
+             name='main.app',
+             icon=icon,
+             bundle_identifier=None)

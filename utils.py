@@ -1,14 +1,19 @@
 import hashlib
 import socket
-from os import popen
+import subprocess
 from urllib.parse import urlparse
 
 from requests import get
 
 
 def has_ffmpeg() -> bool:
-    check_ffmpeg = popen('ffmpeg -version').read()
-    return 'ffmpeg version' in check_ffmpeg
+    p = subprocess.Popen('ffmpeg -version', shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE)
+    msg = ''
+    for line in p.stdout.readlines():
+        msg += line.decode()
+    p.wait()
+    return 'ffmpeg version' in msg
 
 
 def is_url(_url: str) -> bool:
