@@ -1,18 +1,14 @@
-import argparse
 import multiprocessing
 import os
 import re
-import shutil
-import signal
 import time
-from urllib import parse
 
 import requests
 from fake_useragent import UserAgent
 
 import mul_process_package
-import str_md5
 import my_cache
+import utils
 
 cache = my_cache.cache
 
@@ -68,7 +64,7 @@ def main(dir: str, video_url: str):
                 if "EXTINF" in line:  # 找ts地址并下载
                     ts_url = file_line[index + 1]  # 下一行就是ts网址，有可能只是相对网址，所以需要处理
                     ts_file_name = get_ts_file_name(ts_url)
-                    md5 = str_md5.to_md5(ts_file_name)
+                    md5 = utils.to_md5(ts_file_name)
                     if md5 not in ts_list:
                         has_new_ts_file = True
                         ts_list[md5] = (ts_file_name, False)

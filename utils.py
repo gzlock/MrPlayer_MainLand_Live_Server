@@ -1,7 +1,9 @@
-from os import popen
-from requests import get
-from urllib.parse import urlparse
+import hashlib
 import socket
+from os import popen
+from urllib.parse import urlparse
+
+from requests import get
 
 
 def has_ffmpeg() -> bool:
@@ -53,3 +55,14 @@ def move_to_screen_center(target):
     y = int((height - target.winfo_reqheight()) / 2)
     target.geometry('+{}+{}'.format(x, y))
     target.update()
+
+
+def to_md5(string):
+    """
+    计算字符串md5值
+    :param string: 输入字符串
+    :return: 字符串md5
+    """
+    m = hashlib.md5()
+    m.update(string.encode())
+    return m.hexdigest()
