@@ -1,18 +1,27 @@
 import hashlib
 import socket
 import subprocess
+from sys import platform
+import os
+import json
 from urllib.parse import urlparse
 
 from requests import get
 
 
 def has_ffmpeg() -> bool:
-    p = subprocess.Popen('ffmpeg -version', shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE)
-    msg = ''
-    for line in p.stdout.readlines():
-        msg += line.decode()
-    p.wait()
+    if platform == 'win32':
+        p = subprocess.Popen('ffmpeg -version', shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+        out, err = p.communicate()
+        msg = out.decode()
+        p.terminate()
+    else:
+        p = subprocess.Popen('ffmpeg -version', shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, env=popen_env())
+        out, err = p.communicate()
+        msg = out.decode()
+        p.terminate()
     return 'ffmpeg version' in msg
 
 
@@ -56,10 +65,13 @@ def is_int(s) -> bool:
 def move_to_screen_center(target):
     width = target.winfo_screenwidth()
     height = target.winfo_screenheight()
-    x = int((width - target.winfo_reqwidth()) / 2)
-    y = int((height - target.winfo_reqheight()) / 2)
-    target.geometry('+{}+{}'.format(x, y))
+    w = target.winfo_width() + 1
+    h = target.winfo_height() + 1
+    x = int((width - w) / 2)
+    y = int((height - h) / 2)
+    target.geometry('{}x{}+{}+{}'.format(w, h, x, y))
     target.update()
+    pass
 
 
 def to_md5(string):
@@ -71,3 +83,9 @@ def to_md5(string):
     m = hashlib.md5()
     m.update(string.encode())
     return m.hexdigest()
+
+
+def popen_env()->dict:
+    env = os.environ.copy()
+    env['PATH'] = '/usr/local/bin:' + env['PATH']
+    return env

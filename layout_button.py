@@ -28,7 +28,7 @@ class Frame:
         self.root = root
 
         frame = tkinter.Frame(root)
-        frame.pack(fill=tkinter.BOTH, padx=5, pady=5)
+        frame.pack(fill=tkinter.X, padx=5, pady=5, side=tkinter.BOTTOM)
 
         self.local_frame = local_frame
         self.video_frame = video_frame
@@ -193,7 +193,6 @@ class Frame:
                 messagebox.showerror('出现错误', '清空文件夹失败\n' + dir + '\n' + e.__str__())
 
     def create_mp4(self):
-
         if not utils.has_ffmpeg():
             return messagebox.showerror('错误', '没有安装 ffmpeg')
 
@@ -211,27 +210,44 @@ class Frame:
         command_line = 'ffmpeg -f concat -safe 0 -i {} -c copy {} -y'.format(list_path, final_mp4_path)
 
         if platform == 'win32':
-            messagebox.showinfo('开始合并视频')
             si = subprocess.STARTUPINFO()
             si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             process = subprocess.Popen(command_line, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                        stderr=subprocess.PIPE, startupinfo=si)
         else:
-            process = subprocess.Popen(command_line, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            process = subprocess.Popen(command_line, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                       env=utils.popen_env())
 
         win = tkinter.Toplevel()
         tkinter.Label(win, text='正在合并视频文件中，请稍候', font=('times', 20, 'bold')).pack(padx=10, pady=10)
         win.resizable(0, 0)
         win.after(100, utils.move_to_screen_center, win)
 
-        return_code = process.wait()
-        win.destroy()
+        def check():
+            return_code = process.poll()
+            print('return_code', return_code)
+            if return_code is None:
+                win.after(100, check)
+                return
 
-        if return_code == 0:
-            if messagebox.askyesno('合并文件成功', '是否打开文件夹？'):
-                if platform == 'win32':
-                    subprocess.Popen('explorer /select,"{}"'.format(final_mp4_path))
-                else:
-                    subprocess.Popen(['open', '-R', final_mp4_path])
-        else:
-            messagebox.showinfo('合并视频文件错误', process.stdout.read())
+            win.grab_release()
+            win.destroy()
+            if return_code == 0:
+                if messagebox.askyesno('合并文件成功', '是否打开文件夹？'):
+                    if platform == 'win32':
+                        subprocess.Popen('explorer /select,"{}"'.format(final_mp4_path))
+                    else:
+                        subprocess.Popen(['open', '-R', final_mp4_path])
+            else:
+                messagebox.showinfo('合并视频文件错误', process.stdout.read())
+
+        win.after(100, check)
+
+        def on_closing():
+            if messagebox.askokcancel('警告', '正在合并视频，关闭这个窗口将会中断合并视频'):
+                process.kill()
+                win.destroy()
+
+        win.protocol("WM_DELETE_WINDOW", on_closing)
+
+        win.grab_set()

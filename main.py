@@ -24,7 +24,7 @@ if __name__ == '__main__':
     cache.set('m3u8_stop', False)
 
     root = tkinter.Tk()
-    root.title('综艺玩很大 转播程序 v0.5')
+    root.title('综艺玩很大 转播程序 v0.6')
     # 设置windows窗口图标
     if platform == 'win32':
         icon = resource_path.path('icon.ico')
@@ -33,8 +33,11 @@ if __name__ == '__main__':
 
     # 禁止改变窗口大小
     root.resizable(False, False)
+    root.minsize(450, 550)
 
     # 流程开始
+
+    menu = menu.Menu(root=root, cache=cache)
 
     local = layout_local.Frame(root=root, my_cache=my_cache)
 
@@ -42,10 +45,7 @@ if __name__ == '__main__':
 
     url = layout_url.Frame(root=root)
 
-    # buttons = ButtonsFrame(root=root, local_frame=local, video_frame=video, url_frame=url)
     buttons = layout_button.Frame(root=root, local_frame=local, video_frame=video, url_frame=url, my_cache=my_cache)
-
-    menu = menu.Menu(root=root, cache=cache)
 
     root.after(100, utils.move_to_screen_center, root)
 
@@ -60,6 +60,8 @@ if __name__ == '__main__':
 
 
     root.protocol("WM_DELETE_WINDOW", on_closing)
+
+    root.update()
 
     # 进入消息循环
     root.mainloop()

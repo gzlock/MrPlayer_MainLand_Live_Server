@@ -32,4 +32,4 @@ def has_file(dir: str) -> bool:
 
 
 if __name__ == '__main__':
-    save(**parse_args())
+    save(storage_dir='./test')
