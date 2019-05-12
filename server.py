@@ -48,7 +48,6 @@ def run(port: int, video_dir: str, socket_url: str, only_video: bool):
     if len(socket_url) == 0:
         socket_url = 'null'
     elif socket_url == '1':
-        socket_url = '1'
         create_danmaku(app)
 
     if not only_video:
