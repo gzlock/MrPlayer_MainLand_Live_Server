@@ -1,25 +1,19 @@
 import os
-import sys
 
 import socketio
 from jinja2 import Environment, FileSystemLoader
 from sanic import Sanic
 from sanic.response import html
-from engineio.async_drivers import sanic
+
 import resource_path
 
 online = 0
 
 namespace = '/danmaku'
 
-async_mode = 'sanic'
-# if getattr(sys, 'frozen', False):
-#     async_mode = 'threading'
-
 
 def create_danmaku(app):
-    print('async_mode', async_mode)
-    sio = socketio.AsyncServer(async_mode=async_mode)
+    sio = socketio.AsyncServer(async_mode='sanic')
     sio.attach(app)
 
     @sio.on('connect', namespace=namespace)
@@ -42,7 +36,7 @@ def create_danmaku(app):
         await sio.emit('get_danmaku', message, namespace=namespace, skip_sid=sid)
 
 
-def run(port: int, video_dir: str, socket_url: str):
+def run(port: int, video_dir: str, socket_url: str, only_video: bool):
     # 模版系统
     env = Environment(loader=FileSystemLoader(resource_path.path('./')))
 
@@ -54,15 +48,14 @@ def run(port: int, video_dir: str, socket_url: str):
     if len(socket_url) == 0:
         socket_url = 'null'
     elif socket_url == '1':
-        socket_url = '"1"'
+        socket_url = '1'
         create_danmaku(app)
-    else:
-        socket_url = '"{}"'.format(_socket_url)
 
-    @app.route('/')
-    async def index(request):
-        template = env.get_template('index.html')
-        html_content = template.render(socket_url=socket_url)
-        return html(html_content)
+    if not only_video:
+        @app.route('/')
+        async def index(request):
+            template = env.get_template('index.html')
+            html_content = template.render(socket_url=socket_url)
+            return html(html_content)
 
     app.run(host='0.0.0.0', port=port, access_log=False)

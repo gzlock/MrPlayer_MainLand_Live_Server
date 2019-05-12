@@ -1,4 +1,7 @@
 import tkinter
+from tkinter import ttk
+
+frameList = [tkinter.Frame, tkinter.LabelFrame, ttk.Frame, ttk.LabelFrame, tkinter.Toplevel]
 
 
 class Frame:
@@ -14,7 +17,7 @@ class Frame:
     @staticmethod
     def disable_child(frame: tkinter.Widget, state, without: list):
         for child in frame.winfo_children():
-            if type(child) == tkinter.Frame:
+            if type(child) in frameList:
                 Frame.disable_child(child, state, without=without)
             elif child not in without:
                 child.config(state=state)

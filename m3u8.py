@@ -7,10 +7,7 @@ import requests
 from fake_useragent import UserAgent
 
 import mul_process_package
-import my_cache
 import utils
-
-cache = my_cache.cache
 
 mul_process_package.ok()
 
@@ -27,7 +24,7 @@ proxies = {
 }
 
 
-def main(dir: str, video_url: str):
+def main(dir: str, video_url: str, cache):
     global storage_dir
     storage_dir = os.path.abspath(dir)
 
@@ -49,7 +46,7 @@ def main(dir: str, video_url: str):
         # 四季TV源
         if video_url == '1':
             if time.time() - get_m3u8_url_last_time > 60:
-                temp_url = get_m3u8_url(proxies=proxies)
+                temp_url = get_4gtv_m3u8_url(proxies=proxies)
                 if temp_url is not None:
                     url = temp_url
                     get_m3u8_url_last_time = time.time()
@@ -69,7 +66,7 @@ def main(dir: str, video_url: str):
                         has_new_ts_file = True
                         ts_list[md5] = (ts_file_name, False)
                         queue.apply_async(download_ts_file,
-                                          (storage_dir, url, ts_file_name, ts_url, md5, proxies))
+                                          (storage_dir, url, ts_file_name, ts_url, md5, proxies, cache))
 
             if has_new_ts_file:
                 save_hls_m3u8_list_file()
@@ -78,7 +75,7 @@ def main(dir: str, video_url: str):
     print('已经停止m3u8爬虫')
 
 
-def download_ts_file(video_dir, url: str, ts_name: str, ts_url: str, md5: str, proxies):
+def download_ts_file(video_dir, url: str, ts_name: str, ts_url: str, md5: str, proxies, cache):
     if '://' in ts_url:
         url = ts_url
     else:
@@ -100,7 +97,7 @@ def download_ts_file(video_dir, url: str, ts_name: str, ts_url: str, md5: str, p
             pass
 
 
-def get_m3u8_url(proxies: dict):
+def get_4gtv_m3u8_url(proxies: dict):
     try:
         url = "https://api2.4gtv.tv/Channel/GetChannelUrl"
         ua = UserAgent()
@@ -117,18 +114,23 @@ def get_m3u8_url(proxies: dict):
         if res.status_code is not 200 or 'flstURLs' not in res.text:
             print('获取Key错误，需要台湾IP')
 
-        url = res.json()['Data']['flstURLs'][0]
-        res = requests.get(url, proxies=proxies, timeout=5)
-        file_line = res.text.split('\n')
-        url = '/'.join(url.split('/')[:-1]) + '/' + file_line[7]
-        print('网址', url)
-        return url
+        # 带https://的完整网址
+        url = res.json()['Data']['flstURLs'][1]
+        # res = requests.get(url, proxies=proxies, timeout=5)
+        # file_line = res.text.split('\n')
+        # url = '/'.join(url.split('/')[:-1]) + '/' + file_line[7]
+        # print('网址', url)
+        return url.replace('index.m3u8', 'stream3.m3u8')
 
     except Exception as ex:
         print('M3u8Key 错误', ex)
 
 
 def save_hls_m3u8_list_file():
+    """
+    保存 数组中最后10个ts文件名 到 m3u8文件
+    :return:
+    """
     keys = list(ts_list.keys())
 
     keys = keys[-15:-5]
@@ -157,7 +159,7 @@ def get_ts_file_name(ts_url):
     return ts_url.split('/')[-1].split('?')[0].split('#')[0]
 
 
-def run(dir: str, video_url: str, proxy: str):
+def run(dir: str, video_url: str, proxy: str, cache):
     global proxies
     if len(proxy) == 0:
         proxies = {}
@@ -166,4 +168,4 @@ def run(dir: str, video_url: str, proxy: str):
             'http': proxy,
             'https': proxy,
         }
-    main(dir=dir, video_url=video_url)
+    main(dir=dir, video_url=video_url, cache=cache)

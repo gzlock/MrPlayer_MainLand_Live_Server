@@ -1,6 +1,7 @@
 import os
 import subprocess
 import tkinter
+from tkinter import ttk
 from multiprocessing import Process
 from shutil import rmtree
 from sys import platform
@@ -27,7 +28,7 @@ class Frame:
         self.my_cache = my_cache
         self.root = root
 
-        frame = tkinter.Frame(root)
+        frame = ttk.Frame(root)
         frame.pack(fill=tkinter.X, padx=5, pady=5, side=tkinter.BOTTOM)
 
         self.local_frame = local_frame
@@ -35,19 +36,19 @@ class Frame:
         self.url_frame = url_frame
 
         # 启动 服务
-        self.start_btn = start_btn = tkinter.Button(frame, text='启动转播', command=self.start)
+        self.start_btn = start_btn = ttk.Button(frame, text='启动转播', command=self.start)
         start_btn.pack(side=tkinter.LEFT)
 
         # 停止 服务
-        self.stop_btn = stop_btn = tkinter.Button(frame, text='停止转播', command=self.stop, state=tkinter.DISABLED)
+        self.stop_btn = stop_btn = ttk.Button(frame, text='停止转播', command=self.stop, state=tkinter.DISABLED)
         stop_btn.pack(side=tkinter.LEFT, padx=5, pady=5)
 
         # 合并视频文件
-        self.create_mp4_btn = create_mp4_btn = tkinter.Button(frame, text='合并视频', command=self.create_mp4)
+        self.create_mp4_btn = create_mp4_btn = ttk.Button(frame, text='合并视频', command=self.create_mp4)
         create_mp4_btn.pack(side=tkinter.LEFT)
 
         # 清空视频缓存
-        self.clear_cache_btn = clear_cache_btn = tkinter.Button(frame, text='清空缓存', command=self.clear_cache)
+        self.clear_cache_btn = clear_cache_btn = ttk.Button(frame, text='清空缓存', command=self.clear_cache)
         clear_cache_btn.pack(side=tkinter.RIGHT)
 
         self.is_start = False
@@ -125,10 +126,12 @@ class Frame:
                 message = '连接 网络视频源 超时(5秒)'
             return messagebox.showerror(title, message)
 
-        self.__m3u8_process = Process(target=m3u8.run, args=(video_cache_dir, video_url, proxy_url))
+        self.__m3u8_process = Process(target=m3u8.run,
+                                      args=(video_cache_dir, video_url, proxy_url, self.my_cache.cache))
         self.__m3u8_process.start()
 
-        self.__server_process = Process(target=server.run, args=(port, video_cache_dir, danmaku_url))
+        only_video = self.local_frame.only_video()
+        self.__server_process = Process(target=server.run, args=(port, video_cache_dir, danmaku_url, only_video))
         self.__server_process.start()
 
         return '123ok'
@@ -235,7 +238,8 @@ class Frame:
             if return_code == 0:
                 if messagebox.askyesno('合并文件成功', '是否打开文件夹？'):
                     if platform == 'win32':
-                        subprocess.Popen('explorer /select,"{}"'.format(final_mp4_path))
+                        os.startfile(final_mp4_path)
+                        # subprocess.Popen('explorer /select,"{}"'.format(final_mp4_path))
                     else:
                         subprocess.Popen(['open', '-R', final_mp4_path])
             else:

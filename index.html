@@ -28,7 +28,7 @@
 <div id="dplayer">
 </div>
 <script>
-  var socket_url = {{socket_url}};
+  var socket_url = '{{socket_url}}';
   if (socket_url === '1')
     socket_url = 'http://' + window.location.host + '/danmaku';
   var config = {
@@ -39,7 +39,7 @@
       type: 'hls',
     },
     live: true,
-    danmaku: !!socket_url,
+    danmaku: socket_url !== 'null',
     apiBackend: {
       read: function (options) {
         console.log('read', options);
