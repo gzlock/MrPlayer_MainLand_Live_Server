@@ -1,9 +1,9 @@
-from tempfile import gettempdir
-from os import path as osPath
-from diskcache import Cache
 from tkinter import Variable
 
-__temp_dir = osPath.normpath(osPath.join(gettempdir(), 'mrplayer_temp'))
+import appdirs
+from diskcache import Cache
+
+__temp_dir = appdirs.user_data_dir(appname='mrplayer_live', appauthor='gzlock')
 
 print('cache dir', __temp_dir)
 

@@ -14,10 +14,13 @@ import mul_process_package
 import my_cache
 import resource_path
 import utils
+import github_update
 
 mul_process_package.ok()
 
 cache = my_cache.cache
+
+version: float = 0.8
 
 if __name__ == '__main__':
     freeze_support()
@@ -25,7 +28,7 @@ if __name__ == '__main__':
     cache.set('m3u8_stop', False)
 
     root = tkinter.Tk()
-    root.title('综艺玩很大 转播程序 v0.7')
+    root.title('综艺玩很大 转播程序 v' + str(version))
     # 设置windows窗口图标
     if platform == 'win32':
         icon = resource_path.path('icon.ico')
@@ -65,10 +68,11 @@ if __name__ == '__main__':
 
     root.protocol("WM_DELETE_WINDOW", on_closing)
 
-    root.update()
-
+    # 检查 更新
+    root.after(2000, lambda: github_update.UpdateSoftware(root=root, cache=cache, current_version=version, menu=menu))
     # 进入消息循环
     root.mainloop()
+    # 关闭主窗口
     print('退出程序')
     cache.set('m3u8_stop', True)
     sys.exit(0)

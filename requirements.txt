@@ -7,3 +7,4 @@ pyquery
 requests
 sanic
 python-socketio
+appdirs
