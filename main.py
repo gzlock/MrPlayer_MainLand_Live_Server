@@ -1,10 +1,11 @@
 import sys
 import tkinter
 from multiprocessing import freeze_support
-from tkinter import messagebox
 from sys import platform
+from tkinter import messagebox
 from tkinter.ttk import Frame
 
+import github_update
 import layout_button
 import layout_local
 import layout_url
@@ -14,13 +15,12 @@ import mul_process_package
 import my_cache
 import resource_path
 import utils
-import github_update
 
 mul_process_package.ok()
 
 cache = my_cache.cache
 
-version: float = 0.8
+version: float = 0.81
 
 if __name__ == '__main__':
     freeze_support()
@@ -69,7 +69,7 @@ if __name__ == '__main__':
     root.protocol("WM_DELETE_WINDOW", on_closing)
 
     # 检查 更新
-    root.after(2000, lambda: github_update.UpdateSoftware(root=root, cache=cache, current_version=version, menu=menu))
+    root.after(2000, lambda: github_update.UpdateSoftware(root=root, cache=cache, current_version=version))
     # 进入消息循环
     root.mainloop()
     # 关闭主窗口
