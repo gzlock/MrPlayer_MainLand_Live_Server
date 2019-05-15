@@ -1,9 +1,13 @@
 import multiprocessing
 from sys import platform
 from tkinter import messagebox, filedialog
-from diskcache import Cache
 
 import requests
+from diskcache import Cache
+
+import mul_process_package
+
+mul_process_package.ok()
 
 github_release_url = 'https://api.github.com/repos/gzlock/mrplayer_mainland_live_server/releases/latest'
 
@@ -34,12 +38,25 @@ class UpdateSoftware:
         global _cache
         _cache = cache
         self.current_version = current_version
+        self.asked = False
         self.latest_version = _cache.get(last_version_key, default=0)
         if self.latest_version == 0:
             self.latest_version = current_version
 
         # root.after_idle(self.get_github_version)
         self.get_github_version()
+        self.loop_check()
+
+    def loop_check(self):
+        try:
+            # 还没有保存
+            if not self.asked and _cache.get(file_downloaded_key, default=False):
+                self.download_success()
+        except:
+            pass
+        finally:
+            if not self.asked:
+                self.root.after(2000, self.loop_check)
 
     def get_github_version(self):
         try:
@@ -50,6 +67,9 @@ class UpdateSoftware:
                 self.compare_version(res)
         except:
             pass
+
+    def has_new_version(self, github_version) -> bool:
+        return github_version > self.latest_version or self.latest_version > self.current_version
 
     def compare_version(self, res: dict = None):
         """
@@ -62,29 +82,21 @@ class UpdateSoftware:
         downloaded = _cache.get(file_downloaded_key, default=False)
 
         print(
-            {'github version': latest_version, 'cache version': self.latest_version, 'downloaded': downloaded})
+            {'current version': self.current_version,
+             'cache version': self.latest_version,
+             'github version': latest_version,
+             'downloaded': downloaded})
+
         # 比缓存里的新版本号要新
         if latest_version > self.latest_version:
-            print('步骤 1')
             # 更新 缓存 版本号
             _cache.set(last_version_key, latest_version)
-            # 下载到缓存
-            self.download_file(res)
 
-        # 缓存比现存的要新
-        elif self.latest_version > self.current_version and _cache.get(file_downloaded_key,
-                                                                       default=False) is True:
-            # 已经下载，提示保存
-            if downloaded:
-                print('步骤 2')
-                UpdateSoftware.download_success()
-            else:
-                print('步骤 3')
+        if self.has_new_version(latest_version):
+            if not downloaded:
                 self.download_file(res)
-
-        # 版本号相同，清空缓存
         else:
-            print('步骤 4')
+            print('版本号相同，清空缓存')
             _cache.set(file_downloaded_key, 1, 0)
             _cache.set(file_key, 1, 0)
             _cache.expire()
@@ -100,16 +112,15 @@ class UpdateSoftware:
                 url = item['browser_download_url']
                 break
 
-        if url is None:
-            return
+        print('platform', platform, find, url)
 
-        pool = multiprocessing.Pool(1)
-        pool.apply_async(func=UpdateSoftware.download_thread, args=(url,),
-                         callback=UpdateSoftware.download_success)
+        multiprocessing.Process(target=UpdateSoftware.download_thread, args=(url, _cache)).start()
 
     @staticmethod
-    def download_thread(url):
+    def download_thread(url, _cache):
         print('下载', url)
+        if url is None:
+            return
         # return
 
         res = requests.get(url)
@@ -122,9 +133,10 @@ class UpdateSoftware:
     def save_file():
         pass
 
-    @staticmethod
-    def download_success(*args):
-        yes = messagebox.askyesno('下载完成', '已经下载新版本，是否保存到硬盘？')
+    def download_success(self, *args):
+        self.asked = True
+        yes = messagebox.askyesno('新版本下载完成', '是否保存到硬盘？')
+
         if not yes:
             return
         latest_version = _cache.get(last_version_key)
