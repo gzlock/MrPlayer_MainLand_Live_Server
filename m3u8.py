@@ -43,10 +43,9 @@ def main(dir: str, video_url: str, cache):
 
     # 不断循环
     while not cache.get('m3u8_stop', default=False):
-        # 四季TV源
         if video_url == '1':
             if time.time() - get_m3u8_url_last_time > 60:
-                temp_url = get_4gtv_m3u8_url(proxies=proxies)
+                temp_url = get_hinet_m3u8_url(proxies=proxies)
                 if temp_url is not None:
                     url = temp_url
                     get_m3u8_url_last_time = time.time()
@@ -97,6 +96,7 @@ def download_ts_file(video_dir, url: str, ts_name: str, ts_url: str, md5: str, p
             pass
 
 
+# 1080P
 def get_4gtv_m3u8_url(proxies: dict):
     try:
         url = "https://api2.4gtv.tv/Channel/GetChannelUrl"
@@ -116,11 +116,37 @@ def get_4gtv_m3u8_url(proxies: dict):
 
         # 带https://的完整网址
         url = res.json()['Data']['flstURLs'][1]
-        # res = requests.get(url, proxies=proxies, timeout=5)
-        # file_line = res.text.split('\n')
-        # url = '/'.join(url.split('/')[:-1]) + '/' + file_line[7]
-        # print('网址', url)
         return url.replace('index.m3u8', 'stream3.m3u8')
+
+    except Exception as ex:
+        print('M3u8Key 错误', ex)
+
+
+# hinet的源
+def get_hinet_m3u8_url(proxies: dict):
+    try:
+        url = "https://api2.4gtv.tv/Channel/GetChannelUrl"
+        ua = UserAgent()
+        payload = "fnCHANNEL_ID=4&fsASSET_ID=4gtv-4gtv040&fsDEVICE_TYPE=pc&clsIDENTITY_VALIDATE_ARUS%5BfsVALUE%5D=123"
+        headers = {
+            "User-Agent": ua.random,
+            'cache-control': "no-cache",
+            'content-type': "application/x-www-form-urlencoded",
+            "Pragma": "no-cache",
+            "Accept-Language": "zh-CN,zh;q=0.8,en-US;q=0.6,en;q=0.4",
+        }
+        res = requests.request("POST", url, data=payload, headers=headers, proxies=proxies,
+                               timeout=5)
+        if res.status_code is not 200 or 'flstURLs' not in res.text:
+            print('获取Key错误，需要台湾IP')
+
+        # 带https://的完整网址
+        url = res.json()['Data']['flstURLs'][0]
+        res = requests.get(url, proxies=proxies, timeout=5)
+        file_line = res.text.split('\n')
+        url = '/'.join(url.split('/')[:-1]) + '/' + file_line[7]
+        # print('网址', url)
+        return url
 
     except Exception as ex:
         print('M3u8Key 错误', ex)
