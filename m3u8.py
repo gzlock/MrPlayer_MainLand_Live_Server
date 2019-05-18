@@ -4,7 +4,6 @@ import re
 import time
 
 import requests
-from fake_useragent import UserAgent
 
 import mul_process_package
 import utils
@@ -100,14 +99,13 @@ def download_ts_file(video_dir, url: str, ts_name: str, ts_url: str, md5: str, p
 def get_4gtv_m3u8_url(proxies: dict):
     try:
         url = "https://api2.4gtv.tv/Channel/GetChannelUrl"
-        ua = UserAgent()
         payload = "fnCHANNEL_ID=4&fsASSET_ID=4gtv-4gtv040&fsDEVICE_TYPE=pc&clsIDENTITY_VALIDATE_ARUS%5BfsVALUE%5D=123"
         headers = {
-            "User-Agent": ua.random,
-            'cache-control': "no-cache",
-            'content-type': "application/x-www-form-urlencoded",
-            "Pragma": "no-cache",
-            "Accept-Language": "zh-CN,zh;q=0.8,en-US;q=0.6,en;q=0.4",
+            'user-agent': '',
+            'cache-control': 'no-cache',
+            'content-type': 'application/x-www-form-urlencoded',
+            'Pragma': 'no-cache',
+            'Accept-Language': 'zh-CN,zh;q=0.8,en-US;q=0.6,en;q=0.4',
         }
         res = requests.request("POST", url, data=payload, headers=headers, proxies=proxies,
                                timeout=5)
@@ -126,10 +124,9 @@ def get_4gtv_m3u8_url(proxies: dict):
 def get_hinet_m3u8_url(proxies: dict):
     try:
         url = "https://api2.4gtv.tv/Channel/GetChannelUrl"
-        ua = UserAgent()
         payload = "fnCHANNEL_ID=4&fsASSET_ID=4gtv-4gtv040&fsDEVICE_TYPE=pc&clsIDENTITY_VALIDATE_ARUS%5BfsVALUE%5D=123"
         headers = {
-            "User-Agent": ua.random,
+            'user-agent': '',
             'cache-control': "no-cache",
             'content-type': "application/x-www-form-urlencoded",
             "Pragma": "no-cache",
