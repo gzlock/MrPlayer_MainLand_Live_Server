@@ -3,7 +3,7 @@ from webbrowser import open
 
 
 class Menu:
-    def __init__(self, root, cache) -> None:
+    def __init__(self, root, cache, logger) -> None:
         super().__init__()
         self.menu = menubar = tkMenu(root)
         root.config(menu=menubar)
@@ -18,3 +18,4 @@ class Menu:
             'https://github.com/gzlock/mrplayer_mainland_live_server'))
         helpmenu.add_command(label="百度吴宗宪贴吧", command=lambda: open(
             'http://tieba.baidu.com/f?kw=%E5%90%B4%E5%AE%97%E5%AE%AA&ie=utf-8'))
+        helpmenu.add_command(label="打开日志窗口", command=lambda: logger.open())

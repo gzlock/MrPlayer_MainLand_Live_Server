@@ -15,12 +15,13 @@ import mul_process_package
 import my_cache
 import resource_path
 import utils
+from logger import Logger
 
 mul_process_package.ok()
 
 cache = my_cache.cache
 
-version: float = 0.82
+version: float = 0.83
 
 if __name__ == '__main__':
     freeze_support()
@@ -44,7 +45,10 @@ if __name__ == '__main__':
 
     # 流程开始
 
-    menu = menu.Menu(root=root, cache=cache)
+    logger = Logger(root)
+    logger.loop()
+
+    menu = menu.Menu(root=root, cache=cache, logger=logger)
 
     local = layout_local.Frame(root=frame, my_cache=my_cache)
 
@@ -52,7 +56,8 @@ if __name__ == '__main__':
 
     url = layout_url.Frame(root=frame)
 
-    buttons = layout_button.Frame(root=frame, local_frame=local, video_frame=video, url_frame=url, my_cache=my_cache)
+    buttons = layout_button.Frame(root=frame, local_frame=local, video_frame=video, url_frame=url, my_cache=my_cache,
+                                  logger=logger)
 
     root.after(100, utils.move_to_screen_center, root)
 

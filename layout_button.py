@@ -23,10 +23,11 @@ class Frame:
     __server_process = None
 
     def __init__(self, root, local_frame: layout_local.Frame, video_frame: layout_video.Frame,
-                 url_frame: layout_url.Frame, my_cache) -> None:
+                 url_frame: layout_url.Frame, my_cache, logger) -> None:
         super().__init__()
         self.my_cache = my_cache
         self.root = root
+        self.__logger = logger
 
         frame = ttk.Frame(root)
         frame.pack(fill=tkinter.X, padx=5, pady=5, side=tkinter.BOTTOM)
@@ -151,6 +152,9 @@ class Frame:
         self.create_mp4_btn.config(state=tkinter.DISABLED)
 
         self.url_frame.set_ip(port=self.local_frame.port())
+
+        self.__logger.flush()
+        self.__logger.open()
 
     def stop(self):
         self.my_cache.cache.set('m3u8_stop', True)
