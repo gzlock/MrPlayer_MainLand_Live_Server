@@ -39,9 +39,9 @@ class UpdateSoftware:
         _cache = cache
         self.current_version = current_version
         self.asked = False
-        self.latest_version = _cache.get(latest_version_key, default=0)
-        if self.latest_version == 0:
-            self.latest_version = current_version
+        self.cache_version = _cache.get(latest_version_key, default=0)
+        if self.cache_version < current_version:
+            self.cache_version = current_version
 
         # root.after_idle(self.get_github_version)
         self.get_github_version()
@@ -68,9 +68,6 @@ class UpdateSoftware:
         except:
             pass
 
-    def has_new_version(self, github_version) -> bool:
-        return github_version > self.latest_version or self.latest_version > self.current_version
-
     def compare_version(self, res: dict = None):
         """
         对比版本号
@@ -83,28 +80,32 @@ class UpdateSoftware:
 
         print(
             {'current version': self.current_version,
-             'cache version': self.latest_version,
+             'cache version': self.cache_version,
              'github version': latest_version,
              'downloaded': downloaded})
 
-        # 比缓存里的新版本号要新
-        if latest_version > self.latest_version:
+        # 比缓存里的版本号要新
+        if latest_version > self.cache_version:
+            print('有新版本，下载')
             # 更新 缓存 版本号
             _cache.set(latest_version_key, latest_version)
             # 清空缓存
             _cache.set(file_downloaded_key, False, 0)
             _cache.set(file_key, 1, 0)
-            downloaded = False
             _cache.expire()
-
-        if self.has_new_version(latest_version):
-            print('有新版本')
-            if not downloaded:
-                print('有新版本，需要下载新版')
+            # 需要下载
+            self.download_file(res)
+        elif self.cache_version > self.current_version:
+            print('缓存版本比运行的新')
+            if downloaded:
+                print('已经完成，提示更新')
+                self.download_success()
+            else:
+                print('下载新版本')
                 self.download_file(res)
         else:
-            print('版本号相同，清空缓存')
-            _cache.set(file_downloaded_key, 1, 0)
+            print('没有新版本，清空文件缓存')
+            _cache.set(file_downloaded_key, False, 0)
             _cache.set(file_key, 1, 0)
             _cache.expire()
 

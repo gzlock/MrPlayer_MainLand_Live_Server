@@ -58,11 +58,15 @@ class Frame(baseFrame):
         self.__only_video.set(0)
 
     def __hidden_func(self, event):
-        print('event', event, {'create_damaku': self.create_danmaku(), 'only_video': self.only_video()})
-        if event.x < 50 and event.y < 50:
-            self.__show_create_damaku_layout_count += 1
-        if self.__show_create_damaku_layout_count == 5:
-            self.__show_create_danmaku_layout()
+        # print('event', event, {'create_damaku': self.create_danmaku(), 'only_video': self.only_video()})
+        if self.__show_create_damaku_layout_count < 5:
+            if event.x < 50 and event.y < 50:
+                self.__show_create_damaku_layout_count += 1
+                if self.__show_create_damaku_layout_count == 5:
+                    self.__show_create_danmaku_layout()
+                    print('已经打开自建弹幕功能区域')
+                else:
+                    print('继续点击', 5 - self.__show_create_damaku_layout_count, '次就解锁自建弹幕功能')
 
     def __select_folder(self):
         dir = tkinter.filedialog.askdirectory(title='选择要存放视频缓存的目录')
