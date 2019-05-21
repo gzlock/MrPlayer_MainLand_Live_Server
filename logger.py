@@ -16,23 +16,36 @@ class Logger:
         self.__message_list = Manager().list()
         self.__is_scroll_to_bottom = tkinter.IntVar()
         self.__is_scroll_to_bottom.set(1)
-        self.__line_length = 0
+        self.__inserted_line = 0
 
     def loop(self):
-
-        if self.__is_open and len(self.__message_list) > self.__line_length:
+        lines = len(self.__message_list)
+        if self.__is_open and self.__inserted_line < lines:
+            # self.printer.write('有新的日志\n')
 
             self.__text_view.config(state=tkinter.NORMAL)
-            for text in self.__message_list[self.__line_length:]:
-                self.__text_view.insert(tkinter.END, text + '\n')
+
+            i = 0
+            line = ''
+            for text in self.__message_list[self.__inserted_line:]:
+                i += 1
+                if text.endswith('\r') or text.endswith('\n'):
+                    self.__text_view.insert(tkinter.INSERT, line + text + '\n')
+                    line = ''
+                else:
+                    line += text
 
             self.__text_view.config(state=tkinter.DISABLED)
-            self.__line_length = len(self.__message_list)
+
+            # self.printer.write('写入:' + str(i) + ' 行\n')
 
             if self.__is_scroll_to_bottom.get() == 1:
                 self.__text_view.see('end')
 
-        self.__root.after(500, self.loop)
+            self.__inserted_line = lines
+            self.__text_view.update()
+
+        self.__root.after(100, self.loop)
 
     def open(self):
         if not self.__is_open:
@@ -42,26 +55,31 @@ class Logger:
             self.__window.protocol("WM_DELETE_WINDOW", self.close)
             frame = ttk.Frame(self.__window)
             frame.pack(fill=tkinter.BOTH, expand=True)
-            ttk.Button(frame, text='清空日志', command=lambda: self.flush()).pack()
+            ttk.Button(frame, text='清空日志', command=lambda: self.clear()).pack()
             ttk.Checkbutton(frame, text='自动滚动到底部', variable=self.__is_scroll_to_bottom).pack()
             self.__text_view = ScrolledText(frame, state=tkinter.DISABLED)
             self.__text_view.pack(fill=tkinter.BOTH, expand=True)
             self.__is_open = True
 
     def close(self):
+        self.__inserted_line = 0
         self.__is_open = False
-        self.__line_length = 0
         try:
             self.__window.destroy()
         except:
             pass
 
     def write(self, args):
+        args = str(args)
         self.printer.write(args)
         self.__message_list.append(args)
 
     def flush(self):
+        pass
+
+    def clear(self):
         self.__message_list[:] = []
+        self.__inserted_line = 0
         if self.__is_open:
             self.printer.write('清空日志')
             self.__text_view.config(state=tkinter.NORMAL)

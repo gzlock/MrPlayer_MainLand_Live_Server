@@ -153,7 +153,6 @@ class Frame:
 
         self.url_frame.set_ip(port=self.local_frame.port())
 
-        self.__logger.flush()
         self.__logger.open()
 
     def stop(self):
