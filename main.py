@@ -21,7 +21,7 @@ mul_process_package.ok()
 
 cache = my_cache.cache
 
-version: float = 0.83
+version: float = 0.84
 
 if __name__ == '__main__':
     freeze_support()
@@ -72,6 +72,9 @@ if __name__ == '__main__':
 
 
     root.protocol("WM_DELETE_WINDOW", on_closing)
+
+    with open(my_cache.log_file, 'w+') as file:
+        file.write('')
 
     # 检查 更新
     root.after(2000, lambda: github_update.UpdateSoftware(root=root, cache=cache, current_version=version))

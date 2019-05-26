@@ -132,7 +132,8 @@ class Frame:
         self.__m3u8_process.start()
 
         only_video = self.local_frame.only_video()
-        self.__server_process = Process(target=server.run, args=(port, video_cache_dir, danmaku_url, only_video))
+        self.__server_process = Process(target=server.run,
+                                        args=(port, video_cache_dir, danmaku_url, only_video, self.my_cache.cache))
         self.__server_process.start()
 
         return '123ok'
@@ -156,6 +157,7 @@ class Frame:
         self.__logger.open()
 
     def stop(self):
+        print('停止转播')
         self.my_cache.cache.set('m3u8_stop', True)
 
         if self.__server_process is not None:

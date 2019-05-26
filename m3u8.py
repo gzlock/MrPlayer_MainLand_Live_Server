@@ -1,5 +1,6 @@
 import multiprocessing
 import os
+import sys
 import re
 import time
 
@@ -7,6 +8,7 @@ import requests
 
 import mul_process_package
 import utils
+from my_cache import log_file
 
 mul_process_package.ok()
 
@@ -20,6 +22,14 @@ GoOn = True
 proxies = {
     'http': 'http://127.0.0.1:1087',
     'https': 'http://127.0.0.1:1087',
+}
+
+headers = {
+    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36',
+    'cache-control': 'no-cache',
+    'content-type': 'application/x-www-form-urlencoded',
+    'Pragma': 'no-cache',
+    'Accept-Language': 'zh-CN,zh;q=0.8,en-US;q=0.6,en;q=0.4',
 }
 
 
@@ -45,12 +55,19 @@ def main(dir: str, video_url: str, cache):
         if video_url == '1':
             if time.time() - get_m3u8_url_last_time > 60:
                 temp_url = get_hinet_m3u8_url(proxies=proxies)
-                if temp_url is not None:
-                    url = temp_url
-                    get_m3u8_url_last_time = time.time()
+                # temp_url = get_4gtv_m3u8_url(proxies=proxies)
+                if temp_url is None:
+                    pass
+                url = temp_url
+                get_m3u8_url_last_time = time.time()
         if url is None:
             continue
-        m3u8_content = requests.get(url, proxies=proxies).text
+
+        try:
+            m3u8_content = requests.get(url, proxies=proxies, headers=headers).text
+        except Exception as e:
+            print('m3u8读取错误', e)
+            continue
 
         if "#EXTM3U" in m3u8_content:
             file_line = m3u8_content.split("\n")
@@ -63,8 +80,8 @@ def main(dir: str, video_url: str, cache):
                     if md5 not in ts_list:
                         has_new_ts_file = True
                         ts_list[md5] = (ts_file_name, False)
-                        queue.apply_async(download_ts_file,
-                                          (storage_dir, url, ts_file_name, ts_url, md5, proxies, cache))
+                        queue.apply_async(func=download_ts_file,
+                                          args=(storage_dir, url, ts_file_name, ts_url, md5, proxies, cache))
 
             if has_new_ts_file:
                 save_hls_m3u8_list_file()
@@ -74,25 +91,33 @@ def main(dir: str, video_url: str, cache):
 
 
 def download_ts_file(video_dir, url: str, ts_name: str, ts_url: str, md5: str, proxies, cache):
-    if '://' in ts_url:
-        url = ts_url
-    else:
-        url = '/'.join(url.split('/')[:-1]) + '/' + ts_url
-    success = False
-
-    while success is False and not cache.get('m3u8_stop', default=False):
-        print('TS开始下载', ts_name)
+    with open(log_file, 'a+') as log:
+        if '://' in ts_url:
+            url = ts_url
+        else:
+            url = '/'.join(url.split('/')[:-1]) + '/' + ts_url
+        success = False
+        try_time = 0
         video_dir = os.path.join(video_dir, ts_name)
-        try:
-            content = requests.get(url, proxies=proxies, timeout=20).content
-            with open(video_dir, 'wb') as file:
-                file.write(content)
-                success = True
-            print('TS保存成功', ts_name)
-            ts_list[md5] = (ts_name, True)
-        except Exception as ex:
-            print('TS下载失败', ts_name)
-            pass
+
+        while success is False and try_time < 5 and not cache.get('m3u8_stop', default=False):
+            print('TS开始下载', ts_name)
+            log.write('TS开始下载 ' + ts_name + '\n')
+            try:
+                content = requests.get(url, proxies=proxies, timeout=15, headers=headers).content
+                with open(video_dir, 'wb') as file:
+                    file.write(content)
+                    success = True
+                print('TS保存成功', ts_name)
+                log.write('TS保存成功 ' + ts_name + '\n')
+                ts_list[md5] = (ts_name, True)
+            except Exception as ex:
+                print('TS下载失败', try_time, url)
+                log.write('TS下载失败 ' + str(try_time) + ' ' + url + '\n')
+                print(ex)
+                log.write(ex.__str__() + '\n')
+                time.sleep(1)
+                try_time += 1
 
 
 # 1080P
@@ -100,21 +125,13 @@ def get_4gtv_m3u8_url(proxies: dict):
     try:
         url = "https://api2.4gtv.tv/Channel/GetChannelUrl"
         payload = "fnCHANNEL_ID=4&fsASSET_ID=4gtv-4gtv040&fsDEVICE_TYPE=pc&clsIDENTITY_VALIDATE_ARUS%5BfsVALUE%5D=123"
-        headers = {
-            'user-agent': '',
-            'cache-control': 'no-cache',
-            'content-type': 'application/x-www-form-urlencoded',
-            'Pragma': 'no-cache',
-            'Accept-Language': 'zh-CN,zh;q=0.8,en-US;q=0.6,en;q=0.4',
-        }
-        res = requests.request("POST", url, data=payload, headers=headers, proxies=proxies,
-                               timeout=5)
+        res = requests.request("POST", url, data=payload, headers=headers, proxies=proxies, timeout=5)
         if res.status_code is not 200 or 'flstURLs' not in res.text:
             print('获取Key错误，需要台湾IP')
 
         # 带https://的完整网址
         url = res.json()['Data']['flstURLs'][1]
-        return url.replace('index.m3u8', 'stream3.m3u8')
+        return url.replace('https://', 'http://').replace('index.m3u8', 'stream2.m3u8')
 
     except Exception as ex:
         print('M3u8Key 错误', ex)
@@ -123,22 +140,16 @@ def get_4gtv_m3u8_url(proxies: dict):
 # hinet的源
 def get_hinet_m3u8_url(proxies: dict):
     try:
-        url = "https://api2.4gtv.tv/Channel/GetChannelUrl"
+        url = "http://api2.4gtv.tv/Channel/GetChannelUrl"
         payload = "fnCHANNEL_ID=4&fsASSET_ID=4gtv-4gtv040&fsDEVICE_TYPE=pc&clsIDENTITY_VALIDATE_ARUS%5BfsVALUE%5D=123"
-        headers = {
-            'user-agent': '',
-            'cache-control': "no-cache",
-            'content-type': "application/x-www-form-urlencoded",
-            "Pragma": "no-cache",
-            "Accept-Language": "zh-CN,zh;q=0.8,en-US;q=0.6,en;q=0.4",
-        }
-        res = requests.request("POST", url, data=payload, headers=headers, proxies=proxies,
-                               timeout=5)
+        res = requests.request("POST", url, data=payload, headers=headers, proxies=proxies, timeout=5)
         if res.status_code is not 200 or 'flstURLs' not in res.text:
             print('获取Key错误，需要台湾IP')
+            raise Exception('m3u8 读取错误')
 
         # 带https://的完整网址
         url = res.json()['Data']['flstURLs'][0]
+        url = url.replace('https://', 'http://')
         res = requests.get(url, proxies=proxies, timeout=5)
         file_line = res.text.split('\n')
         url = '/'.join(url.split('/')[:-1]) + '/' + file_line[7]

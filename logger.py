@@ -1,8 +1,10 @@
 import sys
 import tkinter
+import os
 from tkinter import ttk
-from multiprocessing import Manager
 from tkinter.scrolledtext import ScrolledText
+
+from my_cache import log_file
 
 
 class Logger:
@@ -13,37 +15,34 @@ class Logger:
         self.__is_open: bool = False
         self.__window: tkinter.Toplevel = None
         self.__text_view: tkinter.Text = None
-        self.__message_list = Manager().list()
+
+        # 是否滚动到底部，默认滚动
         self.__is_scroll_to_bottom = tkinter.IntVar()
         self.__is_scroll_to_bottom.set(1)
-        self.__inserted_line = 0
+
+        self.__read_line = 0
 
     def loop(self):
-        lines = len(self.__message_list)
-        if self.__is_open and self.__inserted_line < lines:
-            # self.printer.write('有新的日志\n')
+        if os.path.exists(log_file) and self.__is_open:
+            with open(log_file, 'r+') as file:
+                lines = file.readlines()[self.__read_line:]
+                if lines:
+                    self.__read_line += len(lines)
+                    self.__text_view.config(state=tkinter.NORMAL)
 
-            self.__text_view.config(state=tkinter.NORMAL)
-
-            i = 0
-            line = ''
-            for text in self.__message_list[self.__inserted_line:]:
-                i += 1
-                if text.endswith('\r') or text.endswith('\n'):
-                    self.__text_view.insert(tkinter.INSERT, line + text + '\n')
                     line = ''
-                else:
-                    line += text
+                    for text in lines:
+                        # if text.endswith('\r') or text.endswith('\n'):
+                        #     self.__text_view.insert(tkinter.END, line + text + '\n')
+                        #     line = ''
+                        # else:
+                        #     line += text
+                        self.__text_view.insert(tkinter.END, text + '\n')
 
-            self.__text_view.config(state=tkinter.DISABLED)
+                    self.__text_view.config(state=tkinter.DISABLED)
 
-            # self.printer.write('写入:' + str(i) + ' 行\n')
-
-            if self.__is_scroll_to_bottom.get() == 1:
-                self.__text_view.see('end')
-
-            self.__inserted_line = lines
-            self.__text_view.update()
+                    if self.__is_scroll_to_bottom.get() == 1:
+                        self.__text_view.see('end')
 
         self.__root.after(100, self.loop)
 
@@ -59,10 +58,11 @@ class Logger:
             ttk.Checkbutton(frame, text='自动滚动到底部', variable=self.__is_scroll_to_bottom).pack()
             self.__text_view = ScrolledText(frame, state=tkinter.DISABLED)
             self.__text_view.pack(fill=tkinter.BOTH, expand=True)
+            self.__text_view.bind("<1>", lambda event: self.__text_view.focus_set())
             self.__is_open = True
 
     def close(self):
-        self.__inserted_line = 0
+        self.__read_line = 0
         self.__is_open = False
         try:
             self.__window.destroy()
@@ -72,16 +72,18 @@ class Logger:
     def write(self, args):
         args = str(args)
         self.printer.write(args)
-        self.__message_list.append(args)
+        with open(log_file, 'a+') as file:
+            file.write(args)
 
     def flush(self):
         pass
 
     def clear(self):
-        self.__message_list[:] = []
-        self.__inserted_line = 0
+        self.printer.write('清空日志')
+        self.__read_line = 0
+        with open(log_file, 'w') as file:
+            file.write('')
         if self.__is_open:
-            self.printer.write('清空日志')
             self.__text_view.config(state=tkinter.NORMAL)
             self.__text_view.delete(1.0, tkinter.END)
             self.__text_view.config(state=tkinter.DISABLED)

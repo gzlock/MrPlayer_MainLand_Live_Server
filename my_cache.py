@@ -1,4 +1,5 @@
 from tkinter import Variable
+import os
 
 import appdirs
 from diskcache import Cache
@@ -8,6 +9,8 @@ __temp_dir = appdirs.user_data_dir(appname='mrplayer_live', appauthor='gzlock')
 print('cache dir', __temp_dir)
 
 cache = Cache(__temp_dir)
+
+log_file = os.path.join(__temp_dir, 'log.txt')
 
 
 def tkVariable(var: Variable, key: str, default=None):
