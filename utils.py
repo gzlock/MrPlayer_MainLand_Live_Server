@@ -1,9 +1,8 @@
 import hashlib
+import os
 import socket
 import subprocess
 from sys import platform
-import os
-import json
 from urllib.parse import urlparse
 
 from requests import get
@@ -85,7 +84,7 @@ def to_md5(string):
     return m.hexdigest()
 
 
-def popen_env()->dict:
+def popen_env() -> dict:
     env = os.environ.copy()
     env['PATH'] = '/usr/local/bin:' + env['PATH']
     return env

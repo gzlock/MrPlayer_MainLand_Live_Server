@@ -233,9 +233,9 @@ class Frame:
 
         def check():
             return_code = process.poll()
-            print('return_code', return_code)
+            # print('return_code', return_code)
             if return_code is None:
-                win.after(100, check)
+                win.after(1000, check)
                 return
 
             win.grab_release()

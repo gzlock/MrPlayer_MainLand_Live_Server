@@ -56,10 +56,9 @@ def main(dir: str, video_url: str, cache):
             if time.time() - get_m3u8_url_last_time > 60:
                 temp_url = get_hinet_m3u8_url(proxies=proxies)
                 # temp_url = get_4gtv_m3u8_url(proxies=proxies)
-                if temp_url is None:
-                    pass
-                url = temp_url
-                get_m3u8_url_last_time = time.time()
+                if temp_url is not None:
+                    url = temp_url
+                    get_m3u8_url_last_time = time.time()
         if url is None:
             continue
 
@@ -135,6 +134,7 @@ def get_4gtv_m3u8_url(proxies: dict):
 
     except Exception as ex:
         print('M3u8Key 错误', ex)
+    return None
 
 
 # hinet的源
@@ -158,6 +158,7 @@ def get_hinet_m3u8_url(proxies: dict):
 
     except Exception as ex:
         print('M3u8Key 错误', ex)
+    return None
 
 
 def save_hls_m3u8_list_file():

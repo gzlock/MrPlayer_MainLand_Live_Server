@@ -21,7 +21,7 @@ mul_process_package.ok()
 
 cache = my_cache.cache
 
-version: float = 0.84
+version: float = 0.85
 
 if __name__ == '__main__':
     freeze_support()
