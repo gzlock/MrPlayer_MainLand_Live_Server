@@ -1,7 +1,7 @@
 # 新版本，使用Aria2下载视频碎片+丢弃了直播功能
 [https://github.com/gzlock/py_gui_hls_aria2](https://github.com/gzlock/py_gui_hls_aria2)
 
-## 此软件已经不再使用
+## ⚠️此软件已经不再使用
 
 ## 玩很大转播计划 配套程序
 
