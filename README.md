@@ -1,4 +1,8 @@
-# 玩很大转播计划 配套程序
+# 新版本，使用Aria2下载视频碎片+丢弃了直播功能
+[https://github.com/gzlock/py_gui_hls_aria2](https://github.com/gzlock/py_gui_hls_aria2)
+
+## 此软件属于丢弃状态
+## 玩很大转播计划 配套程序
 
 
 ![计划图片](./计划.png)
